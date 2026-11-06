@@ -198,9 +198,26 @@ function persist(next: AppState) {
 
 // Account lifecycle ------------------------------------------------------------
 
+/**
+ * True when the guest career saved in this browser was brought into that
+ * account and holds nothing the account doesn't: it's a leftover duplicate.
+ */
+function guestCopiedInto(userId: string, accountState: AppState | null) {
+  if (readItem(importDecisionKey(userId)) !== "imported" || !accountState) return false;
+  const guest = readGuest();
+  if (!guest) return false;
+  const known = new Set(accountState.matches.map((match) => match.id));
+  return realMatches(guest).every((match) => known.has(match.id));
+}
+
 function enterGuest(previousUserId?: string) {
-  // Signing out removes that account's cached copy from this browser.
-  if (previousUserId) removeItem(accountKey(previousUserId));
+  if (previousUserId) {
+    // A career brought into the account belongs to the account now, so signing
+    // out mustn't leave a copy of it showing here as if still signed in.
+    if (guestCopiedInto(previousUserId, state)) removeItem(STORAGE_KEY);
+    // Signing out removes that account's cached copy from this browser.
+    removeItem(accountKey(previousUserId));
+  }
   outbox = {};
   remoteProfileExists = false;
   clearTimeout(retryTimer);
@@ -536,6 +553,9 @@ export const actions = {
     writeItem(importDecisionKey(user.id), "imported");
     setAccount({ guestImport: null });
     persist(merged.state);
+    // The career has moved into the account (cached and queued to sync), so the
+    // browser's guest copy goes: signing out later must not reveal it.
+    removeItem(STORAGE_KEY);
     return { added: merged.added, usedGuestProfile: merged.usedGuestProfile };
   },
   dismissGuestImport() {
