@@ -155,7 +155,7 @@ export function MatchDetailScreen() {
                   {formatDate(match.date)} · {match.format}
                   {match.isSample ? " · Demo data" : ""}
                 </p>
-                <h1 className="stat mt-2 text-stat-xl">
+                <h1 className="numeral mt-2 text-numeral">
                   {score ?? RESULT_META[match.result].label}
                 </h1>
                 <p className="mt-2 text-base font-semibold">
@@ -167,7 +167,7 @@ export function MatchDetailScreen() {
             </div>
             <div className="text-right">
               <p className="eyebrow mb-2">Match rating</p>
-              <p className="stat text-stat-xl text-primary">
+              <p className="numeral text-numeral text-primary">
                 {match.rating.toFixed(1)}
               </p>
               <p className="mt-2 text-xs font-semibold text-muted-foreground">
@@ -303,7 +303,7 @@ export function MatchDetailScreen() {
                     <span
                       className={cn(
                         "w-9 text-right font-semibold tabular-nums",
-                        change.delta >= 0 ? "text-primary" : "text-loss",
+                        change.delta >= 0 ? "text-positive" : "text-loss",
                       )}
                     >
                       {change.delta >= 0 ? "+" : "−"}

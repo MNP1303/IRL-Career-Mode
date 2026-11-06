@@ -110,11 +110,11 @@ export function AttributeRadar({ attributes }: { attributes: Attributes }) {
       {AXES.map((key, index) => {
         const [x, y] = point(index, 118);
         return (
-          <text key={key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontFamily="var(--font-montserrat)">
-            <tspan fontWeight="700" fontSize="15" fill="#f5f5f5">
+          <text key={key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontFamily="var(--font-geist)">
+            <tspan fontWeight="700" fontSize="15" fill="#f2f0e9">
               {Math.round(attributes[key])}
             </tspan>
-            <tspan dx="4" fontWeight="600" fontSize="12" fill="#a3a3a3" letterSpacing="0.5">
+            <tspan dx="4" fontWeight="600" fontSize="12" fill="#a3a29b" letterSpacing="0.5">
               {ATTRIBUTES[key].code}
             </tspan>
           </text>

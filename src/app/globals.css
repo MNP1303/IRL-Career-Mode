@@ -7,10 +7,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-montserrat);
-  --font-display: var(--font-montserrat);
-  --font-heading: var(--font-montserrat);
+  --font-sans: var(--font-geist);
+  --font-display: var(--font-geist);
+  --font-heading: var(--font-geist);
   --font-card: var(--font-barlow-condensed);
+  --font-editorial: var(--font-barlow-condensed);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -30,6 +31,8 @@
   --color-surface: var(--surface);
   --color-faint: var(--faint);
   --color-loss: var(--loss);
+  --color-positive: var(--positive);
+  --color-gold: var(--gold);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,8 +52,11 @@
 }
 
 /*
- * Type scale. Montserrat is wide, so the scale steps are a little
- * smaller than Tailwind's defaults. Semantic steps sit alongside them.
+ * Type scale. Geist sets the interface and data at compact, Linear-like sizes;
+ * Barlow Condensed sets editorial display (page titles, player names, headline
+ * numbers), which runs larger because it's narrow. Spacing follows Tailwind's
+ * 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64px steps plus the semantic layout tokens
+ * below.
  */
 @theme {
   --container-app: 80rem;
@@ -61,23 +67,23 @@
   --text-xs--line-height: 1.1rem;
   --text-sm: 0.8125rem;
   --text-sm--line-height: 1.25rem;
-  --text-base: 0.9375rem;
-  --text-base--line-height: 1.5rem;
-  --text-lg: 1.0625rem;
-  --text-lg--line-height: 1.6rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.4rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.55rem;
   --text-xl: 1.25rem;
   --text-xl--line-height: 1.75rem;
   --text-field: 1rem;
   --text-field--line-height: 1.5rem;
 
   /* Section and card headings. */
-  --text-title: 1.0625rem;
+  --text-title: 0.9375rem;
   --text-title--line-height: 1.35;
-  /* Page titles and the hub's player name. */
-  --text-page: clamp(1.625rem, 1.2rem + 1.6vw, 2.25rem);
-  --text-page--line-height: 1.05;
-  --text-hero: clamp(2rem, 1.3rem + 2.6vw, 3.25rem);
-  --text-hero--line-height: 1;
+  /* Editorial: page titles, and the player's name where it leads a page. */
+  --text-page: clamp(2.125rem, 1.6rem + 1.8vw, 2.875rem);
+  --text-page--line-height: 0.95;
+  --text-hero: clamp(3rem, 2rem + 3.6vw, 4.75rem);
+  --text-hero--line-height: 0.88;
 
   /* Numerals, from inline values up to headline ratings. */
   --text-stat-sm: 1.125rem;
@@ -88,6 +94,9 @@
   --text-stat-lg--line-height: 1;
   --text-stat-xl: clamp(2.5rem, 1.9rem + 2vw, 3.5rem);
   --text-stat-xl--line-height: 1;
+  /* Headline numbers in the editorial face: scorelines, ratings, levels. */
+  --text-numeral: clamp(3rem, 2.2rem + 2.6vw, 4.25rem);
+  --text-numeral--line-height: 0.9;
 }
 
 /*
@@ -96,26 +105,33 @@
  */
 :root {
   color-scheme: dark;
-  --background: #111111;
-  --foreground: #f5f5f5;
-  --surface: #161616;
-  --card: #1a1a1a;
-  --card-foreground: #f5f5f5;
-  --popover: #202020;
-  --popover-foreground: #f5f5f5;
+  /* 60: charcoal. */
+  --background: #111213;
+  --surface: #161718;
+  --card: #191b1c;
+  --popover: #222425;
+  --muted: #1d1f20;
+  --accent: #26282a;
+  /* 30: ivory. */
+  --foreground: #f2f0e9;
+  --card-foreground: #f2f0e9;
+  --popover-foreground: #f2f0e9;
+  --accent-foreground: #f2f0e9;
+  --secondary: #e6e5df;
+  --secondary-foreground: #111213;
+  --muted-foreground: #a3a29b;
+  --faint: #6f6e68;
+  /* 10: green. Lime leads; the softer green marks positive change. */
   --primary: #c8ff00;
-  --primary-foreground: #111111;
-  --secondary: #f5f5f5;
-  --secondary-foreground: #111111;
-  --muted: #1f1f1f;
-  --muted-foreground: #a3a3a3;
-  --faint: #6e6e6e;
-  --accent: #2a2a2a;
-  --accent-foreground: #f5f5f5;
+  --primary-foreground: #111213;
+  --positive: #79a85d;
+  /* Champagne gold: a material for cards, badges and the football, never UI chrome. */
+  --gold: #c9a874;
   --destructive: #ff5f52;
   --loss: #ff5f52;
-  --border: rgb(245 245 245 / 9%);
-  --input: rgb(245 245 245 / 15%);
+  /* Separation comes mostly from tone; borders stay quiet. */
+  --border: rgb(242 240 233 / 7.5%);
+  --input: rgb(242 240 233 / 14%);
   --ring: #c8ff00;
   --radius: 0.375rem;
 
@@ -191,9 +207,9 @@
 
 /* An off-white surface for the one thing on a screen that leads. */
 .surface-inverse {
-  --background: #f5f5f5;
-  --foreground: #111111;
-  --card-foreground: #111111;
+  --background: #f2f0e9;
+  --foreground: #111213;
+  --card-foreground: #111213;
   --muted-foreground: #5c5c5c;
   --faint: #8a8a8a;
   --accent: #e2e2e2;
@@ -217,8 +233,9 @@
   body {
     @apply bg-background text-base text-foreground;
     overflow-x: clip;
-    font-weight: 450;
+    font-weight: 400;
     font-feature-settings: "lnum";
+    letter-spacing: -0.005em;
   }
   ::selection {
     background: var(--primary);
@@ -239,13 +256,13 @@
   }
 }
 
-/* Page titles: heavy, uppercase, tight. */
+/* Editorial display: page titles and player names, condensed and athletic. */
 @utility display {
-  font-family: var(--font-display);
-  font-weight: 800;
+  font-family: var(--font-editorial);
+  font-weight: 700;
   text-transform: uppercase;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: 0.95;
+  letter-spacing: 0.005em;
 }
 
 /* Section and card titles: sentence case, bold. */
@@ -264,13 +281,22 @@
   letter-spacing: -0.03em;
 }
 
+/* Headline numbers in the editorial face, for the moments that lead a view. */
+@utility numeral {
+  font-family: var(--font-editorial);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 0.9;
+  letter-spacing: 0;
+}
+
 @utility eyebrow {
   font-family: var(--font-display);
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.09em;
   color: var(--muted-foreground);
 }
 
@@ -327,7 +353,8 @@
  * content; a charcoal wash keeps it in the background (60% charcoal).
  */
 :root {
-  --pattern-wash: rgb(17 17 17 / 40%);
+  /* A faint engraving behind everything: the artwork reads, it never competes. */
+  --pattern-wash: rgb(17 18 19 / 74%);
   /* The tile is 3344px of artwork drawn at half size: finer motifs, sharp on 2x screens. */
   --pattern-size: 1672px;
 }
@@ -767,25 +794,25 @@
   display: none;
 }
 ::view-transition-old(.nav-forward) {
-  --vt-offset: -48px;
+  --vt-offset: -24px;
   animation:
     var(--dur-exit) var(--ease-press) both vt-fade reverse,
     var(--dur-move) var(--ease-in-out) both vt-slide reverse;
 }
 ::view-transition-new(.nav-forward) {
-  --vt-offset: 48px;
+  --vt-offset: 24px;
   animation:
     var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
     var(--dur-move) var(--ease-out) both vt-slide;
 }
 ::view-transition-old(.nav-back) {
-  --vt-offset: 48px;
+  --vt-offset: 24px;
   animation:
     var(--dur-exit) var(--ease-press) both vt-fade reverse,
     var(--dur-move) var(--ease-in-out) both vt-slide reverse;
 }
 ::view-transition-new(.nav-back) {
-  --vt-offset: -48px;
+  --vt-offset: -24px;
   animation:
     var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
     var(--dur-move) var(--ease-out) both vt-slide;

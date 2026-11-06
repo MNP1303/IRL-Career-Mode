@@ -138,11 +138,11 @@ export function PlayerCard({
   const pointerX = useMotionValue(0.5);
   const pointerY = useMotionValue(0.35);
   const spring = { stiffness: 170, damping: 18, mass: 0.6 };
-  const rotateY = useSpring(useTransform(pointerX, [0, 1], [-13, 13]), spring);
-  const rotateX = useSpring(useTransform(pointerY, [0, 1], [10, -10]), spring);
+  const rotateY = useSpring(useTransform(pointerX, [0, 1], [-8, 8]), spring);
+  const rotateX = useSpring(useTransform(pointerY, [0, 1], [6, -6]), spring);
   const sheenX = useSpring(useTransform(pointerX, [0, 1], [0, 320]), spring);
   const sheenY = useSpring(useTransform(pointerY, [0, 1], [0, 472]), spring);
-  const glow = useMotionTemplate`drop-shadow(0 26px 40px rgb(0 0 0 / 55%)) drop-shadow(0 0 34px ${foil.glow})`;
+  const glow = useMotionTemplate`drop-shadow(0 22px 34px rgb(0 0 0 / 60%)) drop-shadow(0 0 12px ${foil.glow})`;
 
   useEffect(() => {
     const node = ovrText.current;
@@ -260,22 +260,13 @@ export function PlayerCard({
                 <stop offset="0" stopColor="#3a4638" />
                 <stop offset="1" stopColor="#141a14" />
               </linearGradient>
-              <pattern
-                id={`lines-${uid}`}
-                width="9"
-                height="9"
-                patternUnits="userSpaceOnUse"
-                patternTransform="rotate(-52)"
-              >
-                <line
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="9"
-                  stroke={foil.accent}
-                  strokeOpacity="0.07"
-                  strokeWidth="1"
-                />
+              {/* Seigaiha waves, engraved so faintly they read as texture, not decoration. */}
+              <pattern id={`lines-${uid}`} width="24" height="12" patternUnits="userSpaceOnUse">
+                <g fill="none" stroke={foil.accent} strokeOpacity="0.075" strokeWidth="0.8">
+                  <path d="M-12 6a12 12 0 0 1 24 0M-8 6a8 8 0 0 1 16 0M-4 6a4 4 0 0 1 8 0" />
+                  <path d="M12 6a12 12 0 0 1 24 0M16 6a8 8 0 0 1 16 0M20 6a4 4 0 0 1 8 0" />
+                  <path d="M0 12a12 12 0 0 1 24 0M4 12a8 8 0 0 1 16 0M8 12a4 4 0 0 1 8 0" />
+                </g>
               </pattern>
             </defs>
 
@@ -606,7 +597,7 @@ function CardBack({
         transform: "rotateY(180deg)",
         backfaceVisibility: "hidden",
         WebkitBackfaceVisibility: "hidden",
-        filter: `drop-shadow(0 26px 40px rgb(0 0 0 / 55%)) drop-shadow(0 0 34px ${foil.glow})`,
+        filter: `drop-shadow(0 22px 34px rgb(0 0 0 / 60%)) drop-shadow(0 0 12px ${foil.glow})`,
       }}
     >
       <path d={CARD_PATH} fill={`url(#base-${uid})`} />

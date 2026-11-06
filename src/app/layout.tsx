@@ -1,15 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed, Montserrat } from "next/font/google";
+import { Barlow_Condensed, Geist } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
 
-// One geometric family carries the whole interface, from labels to ratings.
-const montserrat = Montserrat({
-  variable: "--font-montserrat",
+// Geist carries the interface and the data: clean, compact, with true tabular figures.
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
 });
 
-// Kept only for the player card, whose condensed type is part of its identity.
+// Barlow Condensed is the athletic editorial voice: player names, page titles,
+// headline numbers and the player card.
 const barlowCondensed = Barlow_Condensed({
   variable: "--font-barlow-condensed",
   subsets: ["latin"],
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#111111",
+  themeColor: "#111213",
   viewportFit: "cover",
 };
 
@@ -35,7 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${montserrat.variable} ${barlowCondensed.variable} h-full antialiased`}
+      className={`${geist.variable} ${barlowCondensed.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <AppShell>{children}</AppShell>

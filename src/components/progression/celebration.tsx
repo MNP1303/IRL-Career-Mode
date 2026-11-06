@@ -56,7 +56,7 @@ function ReportStep({ entry }: { entry: MatchProgress }) {
       </p>
       <div data-a="score" className="mt-3 flex items-center justify-center gap-4">
         <ResultBadge result={match.result} size="lg" />
-        <p className="stat text-stat-xl">{score ?? "Logged"}</p>
+        <p className="numeral text-numeral">{score ?? "Logged"}</p>
       </div>
       {match.opponent ? (
         <p className="mt-3 text-center text-sm font-semibold text-muted-foreground">vs {match.opponent}</p>
@@ -108,7 +108,7 @@ function ReportStep({ entry }: { entry: MatchProgress }) {
                 <span
                   className={
                     change.delta >= 0
-                      ? "stat text-base font-bold text-primary"
+                      ? "stat text-base font-bold text-positive"
                       : "stat text-base font-bold text-loss"
                   }
                 >
@@ -216,7 +216,7 @@ function LevelStep({ entry }: { entry: MatchProgress }) {
       <p data-a="kicker" className="eyebrow relative text-lg tracking-[0.22em] text-primary">
         Level up
       </p>
-      <p data-a="level" className="stat relative mt-2 text-[7.5rem] leading-[0.9] font-bold text-primary sm:text-[9.5rem]">
+      <p data-a="level" className="numeral relative mt-2 text-[8.5rem] text-primary sm:text-[11rem]">
         {entry.levelAfter}
       </p>
       <p data-a="title" className="display relative mt-4 text-page">

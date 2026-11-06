@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { prefersReducedMotion } from "@/lib/gsap";
 
 /** The pattern drifts at this fraction of the scroll, so it reads as further away than the content. */
-const DEPTH = 0.35;
+const DEPTH = 0.15;
 /** The tile's height as a share of its width (the mirrored tile is 3344 × 1882). */
 const TILE_RATIO = 1882 / 3344;
 

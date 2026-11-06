@@ -107,7 +107,7 @@ function PositionMarkers({
               y={y}
               dy="0.9"
               textAnchor="middle"
-              fontFamily="var(--font-montserrat)"
+              fontFamily="var(--font-geist)"
               fontWeight="700"
               fontSize="2.2"
               fill="#fff"

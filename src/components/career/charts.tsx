@@ -24,12 +24,12 @@ import type { Match } from "@/lib/schema";
 
 // Recharts writes these as SVG attributes, so they mirror the CSS tokens.
 const LIME = "#c8ff00";
-const OFF_WHITE = "#e8e8e8";
-const CONTEXT_BAR = "#3a3a3a";
+const OFF_WHITE = "#e6e5df";
+const CONTEXT_BAR = "#34373a";
 const MUTED_LINE = "#6e6e6e";
-const SURFACE = "#1a1a1a";
+const SURFACE = "#191b1c";
 const GRID = "rgb(245 245 245 / 7%)";
-const TICK = { fill: "#a3a3a3", fontSize: 11, fontWeight: 500, fontFamily: "var(--font-montserrat)" };
+const TICK = { fill: "#a3a29b", fontSize: 11, fontWeight: 500, fontFamily: "var(--font-geist)" };
 
 function TipBox({ title, rows }: { title: string; rows: [string, string | number][] }) {
   return (
@@ -121,8 +121,8 @@ export function OvrChart({ timeline, height = 240 }: { timeline: MatchProgress[]
                     x={props.cx}
                     y={props.cy - 12}
                     textAnchor="middle"
-                    fill="#f5f5f5"
-                    fontFamily="var(--font-montserrat)"
+                    fill="#f2f0e9"
+                    fontFamily="var(--font-geist)"
                     fontSize={14}
                     fontWeight={700}
                   >
@@ -272,10 +272,10 @@ function MonthlyBars({
               <LabelList
                 dataKey={dataKey}
                 position="top"
-                fill="#f5f5f5"
+                fill="#f2f0e9"
                 fontSize={11}
                 fontWeight={600}
-                fontFamily="var(--font-montserrat)"
+                fontFamily="var(--font-geist)"
                 formatter={(value: unknown) => (value ? String(value) : "")}
               />
             </Bar>

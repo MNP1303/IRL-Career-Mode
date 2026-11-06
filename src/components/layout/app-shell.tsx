@@ -87,13 +87,13 @@ function TopBar() {
                 transitionTypes={directionTo(pathname, item.href)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex items-center px-3 font-display text-sm font-semibold transition-colors duration-(--dur-hover) outline-none focus-visible:text-primary lg:px-4",
-                  // A faint underline grows in on hover, previewing the active marker.
-                  "after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:origin-center after:scale-x-0 after:bg-foreground/25 after:transition-transform after:duration-(--dur-hover) after:ease-(--ease-out) lg:after:inset-x-4",
-                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground hover:after:scale-x-100",
+                  "relative flex items-center px-3 font-display text-sm font-medium transition-colors duration-(--dur-hover) outline-none focus-visible:text-foreground lg:px-3.5",
+                  // A quiet surface appears behind the label on hover, as in a desktop app.
+                  "before:absolute before:inset-x-1 before:inset-y-3.5 before:rounded-md before:bg-foreground/0 before:transition-colors before:duration-(--dur-hover) hover:before:bg-foreground/[0.05] focus-visible:before:bg-foreground/[0.07]",
+                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {item.label}
+                <span className="relative">{item.label}</span>
                 {active ? (
                   <motion.span
                     layoutId="nav-active"

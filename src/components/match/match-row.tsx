@@ -6,6 +6,8 @@ import { RatingChip, ResultBadge } from "@/components/shared/primitives";
 import type { Match } from "@/lib/schema";
 import { formatDay, scoreline } from "@/lib/stats";
 
+const MONTHS = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" });
+
 function Contribution({ goals, assists }: { goals: number; assists: number }) {
   if (goals === 0 && assists === 0) return <span className="text-faint">–</span>;
   return (
@@ -29,7 +31,11 @@ export function MatchRow({ match, xp }: { match: Match; xp?: number }) {
           aria-hidden
           className="absolute inset-y-2 left-0 w-0.5 origin-center scale-y-0 bg-primary transition-transform group-hover:scale-y-100 group-focus-visible:scale-y-100"
         />
-        <span className="hidden w-14 shrink-0 text-xs font-medium text-muted-foreground tabular-nums sm:block">{formatDay(match.date)}</span>
+        <span className="hidden w-10 shrink-0 text-center sm:block">
+          <span className="sr-only">{formatDay(match.date)}</span>
+          <span aria-hidden className="numeral block text-[1.375rem]">{Number(match.date.slice(8, 10))}</span>
+          <span aria-hidden className="eyebrow mt-0.5 block text-[0.625rem]">{MONTHS.format(new Date(`${match.date}T00:00:00Z`))}</span>
+        </span>
         <ResultBadge result={match.result} />
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">

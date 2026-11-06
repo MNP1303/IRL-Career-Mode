@@ -64,7 +64,7 @@ function PositionNode({
         y={y}
         dy="0.95"
         textAnchor="middle"
-        fontFamily="var(--font-montserrat)"
+        fontFamily="var(--font-geist)"
         fontWeight="700"
         fontSize="2.4"
         fill={selected ? "var(--primary-foreground)" : "#fff"}
@@ -81,7 +81,7 @@ function PositionNode({
             y={y - 3.4}
             dy="0.72"
             textAnchor="middle"
-            fontFamily="var(--font-montserrat)"
+            fontFamily="var(--font-geist)"
             fontWeight="800"
             fontSize="1.9"
             fill="#111111"

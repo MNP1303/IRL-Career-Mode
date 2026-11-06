@@ -383,7 +383,7 @@ export function MatchForm({ editing }: { editing?: Match }) {
                     {preview.changes.map((change) => (
                       <li key={change.key} className="flex justify-between text-sm">
                         <span className="font-medium text-muted-foreground">{ATTRIBUTES[change.key].code}</span>
-                        <span className={cn("font-semibold tabular-nums", change.delta >= 0 ? "text-primary" : "text-loss")}>
+                        <span className={cn("font-semibold tabular-nums", change.delta >= 0 ? "text-positive" : "text-loss")}>
                           {change.delta >= 0 ? "+" : "−"}
                           {Math.abs(change.delta).toFixed(1)}
                         </span>

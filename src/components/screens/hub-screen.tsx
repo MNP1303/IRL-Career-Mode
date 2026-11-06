@@ -50,17 +50,17 @@ function StatBand({ stats }: { stats: ReturnType<typeof summarise> }) {
   ];
 
   return (
-    <dl className="panel grid grid-cols-6 overflow-hidden sm:grid-cols-5">
+    <dl className="panel grid grid-cols-6 overflow-hidden lg:grid-cols-5">
       {items.map((item, index) => (
         <div
           key={item.label}
           data-reveal
           className={cn(
             item.span,
-            "relative px-card py-4 sm:col-span-1",
-            index > 0 && "sm:border-l sm:border-border",
-            index < 3 && "max-sm:border-b max-sm:border-border",
-            index > 0 && index !== 3 && "max-sm:border-l max-sm:border-border",
+            "relative px-card py-4 lg:col-span-1",
+            index > 0 && "lg:border-l lg:border-border",
+            index < 3 && "max-lg:border-b max-lg:border-border",
+            index > 0 && index !== 3 && "max-lg:border-l max-lg:border-border",
           )}
         >
           <dt className="eyebrow">{item.label}</dt>
@@ -136,18 +136,26 @@ export function HubScreen() {
     [matches],
   );
   const objectives = nextObjectives(career, 3);
+  // How the overall has moved over the most recent matches, read straight from the timeline.
+  const recentTimeline = career.timeline.slice(-5);
+  const trend = recentTimeline.length
+    ? {
+        span: recentTimeline.length === 1 ? "match" : `${recentTimeline.length}`,
+        change: recentTimeline.at(-1)!.ovrAfter - recentTimeline[0].ovrBefore,
+      }
+    : null;
   const empty = matches.length === 0;
 
   return (
-    <div className="grid grid-cols-1 gap-x-10 gap-y-section lg:grid-cols-[320px_minmax(0,1fr)]">
-      <div className="lg:row-span-2">
-        <div className="lg:sticky lg:top-24">
+    <div className="grid grid-cols-1 gap-x-8 gap-y-section md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-x-10">
+      <div className="md:row-span-2">
+        <div className="md:sticky md:top-24">
           <PlayerCard
             profile={profile}
             attributes={career.attributes}
             level={career.level.level}
             demo={profile.isSample}
-            className="max-w-[280px] sm:max-w-[320px]"
+            className="max-w-[240px] sm:max-w-[300px] lg:max-w-[320px]"
           />
           <Reveal delay={0.25} className="mx-auto mt-5 max-w-[320px]">
             <div className="flex items-baseline justify-between gap-3">
@@ -166,6 +174,30 @@ export function HubScreen() {
               progress={career.level.progress}
               label="Progress to next level"
             />
+            {trend ? (
+              <dl className="mt-5 grid grid-cols-3 border-t border-border pt-4">
+                <div>
+                  <dt className="eyebrow">Overall</dt>
+                  <dd className="stat mt-1.5 text-stat-sm">{career.ovr}</dd>
+                </div>
+                <div>
+                  <dt className="eyebrow">Last {trend.span}</dt>
+                  <dd
+                    className={cn(
+                      "stat mt-1.5 text-stat-sm",
+                      trend.change > 0 ? "text-positive" : trend.change < 0 ? "text-loss" : "text-muted-foreground",
+                    )}
+                  >
+                    {trend.change > 0 ? "+" : trend.change < 0 ? "−" : "±"}
+                    {Math.abs(trend.change)} OVR
+                  </dd>
+                </div>
+                <div>
+                  <dt className="eyebrow">Peak</dt>
+                  <dd className="stat mt-1.5 text-stat-sm">{career.peakOvr}</dd>
+                </div>
+              </dl>
+            ) : null}
           </Reveal>
         </div>
       </div>
@@ -228,7 +260,7 @@ export function HubScreen() {
             develops from what you actually do.
           </EmptyState>
         ) : (
-          <div className="grid gap-block md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+          <div className="grid gap-block lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
             {latest && latestEntry ? (
               <Tilt>
                 <Link
@@ -244,7 +276,7 @@ export function HubScreen() {
                   </div>
                   <div className="mt-4 flex items-center gap-3">
                     <ResultBadge result={latest.result} size="lg" />
-                    <p className="stat text-stat-xl">
+                    <p className="numeral text-numeral">
                       {scoreline(latest) ?? latest.format}
                     </p>
                     <RatingChip
@@ -324,7 +356,7 @@ export function HubScreen() {
       {!empty ? (
         <Reveal
           delay={0.16}
-          className="grid min-w-0 gap-x-block gap-y-section lg:col-span-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
+          className="grid min-w-0 gap-x-block gap-y-section md:col-span-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
         >
           <section>
             <SectionTitle

@@ -38,7 +38,6 @@ import { PositionPicker } from "@/components/pitch/position-picker";
 import {
   CountUp,
   FillBar,
-  PageHeader,
   Reveal,
   SectionTitle,
 } from "@/components/shared/primitives";
@@ -156,7 +155,7 @@ function ProfileEditor() {
           attributes={career.attributes}
           level={career.level.level}
           demo={profile.isSample}
-          className="max-w-[280px] sm:max-w-[320px]"
+          className="max-w-[240px] sm:max-w-[300px] lg:max-w-[320px]"
         />
         <p className="mt-4 text-center text-xs text-muted-foreground">
           Previewing live as you edit
@@ -470,15 +469,46 @@ function DataManagement() {
   );
 }
 
+/** The page opens on the player, not on a form: name, role and the numbers that define them. */
+function PlayerIntro() {
+  const { profile, career, matches } = useCareer();
+  const position = profile.positions[0];
+  const facts = [
+    { label: "Overall", value: career.ovr },
+    { label: "Level", value: career.level.level },
+    { label: "Matches", value: matches.length },
+    { label: "Badges", value: career.achievements.filter((entry) => entry.unlockedOn).length },
+  ];
+  return (
+    <header className="mb-section grid gap-x-10 gap-y-6 border-b border-border pb-section lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      <div className="min-w-0">
+        <p className="eyebrow flex items-center gap-2">
+          <span className="h-0.5 w-4 bg-primary" aria-hidden />
+          Player profile
+        </p>
+        <h1 className="display mt-3 text-hero break-words">{profile.name}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {POSITION_META[position].name} · #{profile.shirtNumber} · {nationName(profile.nationality)}
+          <span className="text-faint"> · Your identity is yours to set. Your attributes have to be earned.</span>
+        </p>
+      </div>
+      <dl className="grid grid-cols-4 gap-x-8">
+        {facts.map((fact) => (
+          <div key={fact.label}>
+            <dt className="eyebrow">{fact.label}</dt>
+            <dd className="stat mt-2 text-stat-lg">{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </header>
+  );
+}
+
 export function PlayerScreen() {
   const { profile, career } = useCareer();
   return (
     <Reveal>
-      <PageHeader
-        eyebrow="Player profile"
-        title="Your player"
-        description="Your identity is yours to set. Your attributes have to be earned."
-      />
+      <PlayerIntro />
       {/* Remounting keeps the draft in step when the profile is replaced by an import or reset. */}
       <ProfileEditor
         key={`${profile.name}-${profile.photo?.length ?? 0}-${profile.isSample}`}
