@@ -1,0 +1,856 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-montserrat);
+  --font-display: var(--font-montserrat);
+  --font-heading: var(--font-montserrat);
+  --font-card: var(--font-barlow-condensed);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-faint: var(--faint);
+  --color-loss: var(--loss);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Layout rhythm: these change with the viewport, see :root below. */
+  --spacing-gutter: var(--space-gutter);
+  --spacing-section: var(--space-section);
+  --spacing-block: var(--space-block);
+  --spacing-card: var(--space-card);
+  --spacing-control: var(--size-control);
+  --spacing-control-sm: 2.25rem;
+  --spacing-control-lg: 3rem;
+}
+
+/*
+ * Type scale. Montserrat is wide, so the scale steps are a little
+ * smaller than Tailwind's defaults. Semantic steps sit alongside them.
+ */
+@theme {
+  --container-app: 80rem;
+
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.6rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-field: 1rem;
+  --text-field--line-height: 1.5rem;
+
+  /* Section and card headings. */
+  --text-title: 1.0625rem;
+  --text-title--line-height: 1.35;
+  /* Page titles and the hub's player name. */
+  --text-page: clamp(1.625rem, 1.2rem + 1.6vw, 2.25rem);
+  --text-page--line-height: 1.05;
+  --text-hero: clamp(2rem, 1.3rem + 2.6vw, 3.25rem);
+  --text-hero--line-height: 1;
+
+  /* Numerals, from inline values up to headline ratings. */
+  --text-stat-sm: 1.125rem;
+  --text-stat-sm--line-height: 1;
+  --text-stat: 1.5rem;
+  --text-stat--line-height: 1;
+  --text-stat-lg: clamp(1.75rem, 1.35rem + 1.2vw, 2.25rem);
+  --text-stat-lg--line-height: 1;
+  --text-stat-xl: clamp(2.5rem, 1.9rem + 2vw, 3.5rem);
+  --text-stat-xl--line-height: 1;
+}
+
+/*
+ * 60 / 30 / 10: charcoal carries the screen, off-white carries content
+ * and contrasting surfaces, and lime is kept for what needs attention.
+ */
+:root {
+  color-scheme: dark;
+  --background: #111111;
+  --foreground: #f5f5f5;
+  --surface: #161616;
+  --card: #1a1a1a;
+  --card-foreground: #f5f5f5;
+  --popover: #202020;
+  --popover-foreground: #f5f5f5;
+  --primary: #c8ff00;
+  --primary-foreground: #111111;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #111111;
+  --muted: #1f1f1f;
+  --muted-foreground: #a3a3a3;
+  --faint: #6e6e6e;
+  --accent: #2a2a2a;
+  --accent-foreground: #f5f5f5;
+  --destructive: #ff5f52;
+  --loss: #ff5f52;
+  --border: rgb(245 245 245 / 9%);
+  --input: rgb(245 245 245 / 15%);
+  --ring: #c8ff00;
+  --radius: 0.375rem;
+
+  --space-gutter: 1rem;
+  --space-section: 1.5rem;
+  --space-block: 1rem;
+  --space-card: 1rem;
+  /* Comfortable touch targets on phones, tighter with a pointer. */
+  --size-control: 2.75rem;
+
+  /*
+   * Motion language. One set of curves and durations for CSS, view
+   * transitions and GSAP (lib/gsap.ts mirrors these), so everything moves
+   * with the same feel: quick to respond, soft to settle.
+   */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-press: cubic-bezier(0.3, 0, 0.5, 1);
+  --dur-press: 120ms;
+  --dur-hover: 200ms;
+  --dur-exit: 160ms;
+  --dur-enter: 280ms;
+  --dur-move: 420ms;
+
+  /* Depth: panels float a little above the pattern; lifted items float higher. */
+  --shadow-panel:
+    inset 0 1px 0 rgb(255 255 255 / 4%), 0 1px 2px rgb(0 0 0 / 35%),
+    0 14px 36px -20px rgb(0 0 0 / 75%);
+  --shadow-lift:
+    inset 0 1px 0 rgb(255 255 255 / 6%), 0 2px 4px rgb(0 0 0 / 35%),
+    0 24px 48px -22px rgb(0 0 0 / 85%);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --space-gutter: 1.5rem;
+    --space-section: 2rem;
+    --space-block: 1.25rem;
+    --space-card: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --size-control: 2.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --space-gutter: 2rem;
+  }
+}
+
+/* A lightly ivory-tinted glass panel for the one thing on a screen that leads. */
+@utility surface-glass {
+  border: 1px solid rgb(237 230 214 / 24%);
+  background:
+    linear-gradient(
+      140deg,
+      rgb(237 230 214 / 22%),
+      rgb(237 230 214 / 8%) 55%,
+      rgb(237 230 214 / 4%)
+    ),
+    var(--card);
+  box-shadow: var(--shadow-panel);
+  @media (hover: hover) {
+    &:hover {
+      border-color: rgb(237 230 214 / 30%);
+    }
+  }
+}
+
+/* An off-white surface for the one thing on a screen that leads. */
+.surface-inverse {
+  --background: #f5f5f5;
+  --foreground: #111111;
+  --card-foreground: #111111;
+  --muted-foreground: #5c5c5c;
+  --faint: #8a8a8a;
+  --accent: #e2e2e2;
+  --border: rgb(17 17 17 / 12%);
+  /* Lime can't be read on off-white, so the accent inverts to ink. */
+  --primary: #111111;
+  --primary-foreground: #c8ff00;
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-color: var(--accent) transparent;
+  }
+  body {
+    @apply bg-background text-base text-foreground;
+    overflow-x: clip;
+    font-weight: 450;
+    font-feature-settings: "lnum";
+  }
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.75);
+    cursor: pointer;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+/* Page titles: heavy, uppercase, tight. */
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Section and card titles: sentence case, bold. */
+@utility heading {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Every number that matters: aligned figures, tight tracking. */
+@utility stat {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+@utility eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted-foreground);
+}
+
+@utility panel {
+  position: relative;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow-panel);
+}
+
+/* Things you can open lift towards you on hover and settle back when pressed. */
+@utility lift {
+  transition:
+    transform var(--dur-hover) var(--ease-out),
+    box-shadow var(--dur-hover) var(--ease-out),
+    border-color var(--dur-hover) var(--ease-out),
+    background-color var(--dur-hover) var(--ease-out);
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lift);
+    }
+  }
+  &:active {
+    transform: translateY(0) scale(0.99);
+    transition-duration: var(--dur-press);
+  }
+}
+
+/* The chamfered corners borrowed from the player card. */
+@utility chamfer {
+  clip-path: polygon(
+    8px 0,
+    100% 0,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    0 100%,
+    0 8px
+  );
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * The emerald pattern behind the whole app. The supplied artwork is tiled as a
+ * mirrored 2x2 block, so every edge meets its own reflection and the pattern
+ * repeats without seams however long the page gets. It scrolls with the
+ * content; a charcoal wash keeps it in the background (60% charcoal).
+ */
+:root {
+  --pattern-wash: rgb(17 17 17 / 40%);
+  /* The tile is 3344px of artwork drawn at half size: finer motifs, sharp on 2x screens. */
+  --pattern-size: 1672px;
+}
+.brand-pattern {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(var(--pattern-wash), var(--pattern-wash)),
+    url("../assets/brand/pattern-tile.webp");
+  background-size:
+    auto,
+    var(--pattern-size) auto;
+  background-repeat: repeat;
+  background-position: center top;
+}
+@media (max-width: 767px) {
+  :root {
+    --pattern-size: 1100px;
+  }
+}
+/* Feature areas let more of the pattern through. */
+.brand-feature {
+  --pattern-wash: rgb(17 17 17 / 18%);
+}
+/* Full-screen moments, like the post-match report, need more wash for text. */
+.brand-overlay {
+  --pattern-wash: rgb(17 17 17 / 78%);
+}
+
+@keyframes shimmer-sweep {
+  from {
+    transform: translateX(-110%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+.xp-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 45%),
+    transparent
+  );
+  animation: shimmer-sweep 3.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeleton {
+  border-radius: var(--radius-xl);
+  background: var(--muted);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-shimmer::after,
+  .skeleton {
+    animation: none;
+  }
+}
+
+/*
+ * Football-formation animation, ported from the supplied "Ball reveal"
+ * design. Values are the design's own; pixel lengths became em so the
+ * 800px artboard scales with --br-size.
+ */
+.br-root {
+  position: relative;
+  width: var(--br-size);
+  height: var(--br-size);
+  font-size: calc(var(--br-size) / 800);
+  overflow: hidden;
+}
+.br-svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.br-svg * {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+.br-box {
+  position: absolute;
+  left: 142.9em;
+  top: 142.9em;
+  width: 514.2em;
+  height: 514.2em;
+}
+.br-box img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.br-anim {
+  animation-duration: var(--br-d, 7s);
+  animation-delay: var(--br-delay, 0s);
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+}
+.br-stage {
+  position: absolute;
+  inset: 0;
+  animation-name: br-out;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.br-lights {
+  mix-blend-mode: screen;
+  animation-name: br-spin, br-lights, br-reveal;
+  mask-image: radial-gradient(circle closest-side, #000 72%, transparent 100%);
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+.br-bloom {
+  filter: blur(18em);
+  opacity: 0.55;
+}
+.br-glow {
+  filter: blur(6em);
+  opacity: 0.95;
+}
+.br-ball {
+  animation-name: br-ball, br-ballreveal;
+  mask-image: radial-gradient(circle closest-side, #000 80%, transparent 100%);
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+.br-rim {
+  fill: none;
+  stroke-dasharray: 1 1;
+  stroke-linecap: round;
+  animation-name: br-rim;
+}
+.br-rimg {
+  animation-name: br-lights;
+}
+.br-halo {
+  animation-name: br-halo;
+}
+.br-shadow {
+  animation-name: br-shadow;
+}
+.br-sheenclip {
+  position: absolute;
+  left: 150em;
+  top: 150em;
+  width: 500em;
+  height: 500em;
+  border-radius: 50%;
+  overflow: hidden;
+  mix-blend-mode: screen;
+}
+.br-sheen {
+  position: absolute;
+  left: -60em;
+  top: -160em;
+  width: 180em;
+  height: 820em;
+  background: linear-gradient(
+    90deg,
+    rgb(255 246 230 / 0),
+    rgb(255 246 230 / 0.16),
+    rgb(255 246 230 / 0)
+  );
+  animation-name: br-sheen;
+}
+@keyframes br-out {
+  0%,
+  84% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  97%,
+  100% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+@keyframes br-spin {
+  0% {
+    transform: rotate(-150deg);
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.24, 1);
+  }
+  34%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+@keyframes br-reveal {
+  0%,
+  2% {
+    mask-size: 0% 0%;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1);
+  }
+  30%,
+  100% {
+    mask-size: 135% 135%;
+  }
+}
+@keyframes br-lights {
+  0%,
+  2% {
+    opacity: 0;
+  }
+  7%,
+  38% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0.2;
+  }
+}
+@keyframes br-ball {
+  0%,
+  28% {
+    opacity: 0;
+    transform: scale(0.97);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  48%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes br-ballreveal {
+  0%,
+  26% {
+    mask-size: 20% 20%;
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  46%,
+  100% {
+    mask-size: 130% 130%;
+  }
+}
+@keyframes br-rim {
+  0%,
+  17% {
+    stroke-dashoffset: 1;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  34%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes br-halo {
+  0%,
+  20% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  36% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  56%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+}
+@keyframes br-shadow {
+  0%,
+  30% {
+    opacity: 0;
+  }
+  48%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes br-sheen {
+  0%,
+  52% {
+    transform: translateX(-200em) rotate(-24deg);
+    opacity: 0;
+  }
+  55%,
+  71% {
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: translateX(640em) rotate(-24deg);
+    opacity: 0;
+  }
+}
+/* The design's own reduced-motion frame: the finished ball, held still. */
+@media (prefers-reduced-motion: reduce) {
+  .br-anim {
+    animation-delay: calc(var(--br-d, 7s) * -0.62);
+    animation-play-state: paused;
+  }
+}
+
+/*
+ * Cursors, for mouse and trackpad only: a fine ivory outline arrow with a lime
+ * glint, a smaller arrow over things you can press, a thin I-beam for text and
+ * a ring while the app loads. Each falls back to the matching system cursor.
+ * Unlayered so it beats Tailwind's cursor utilities; disabled controls keep
+ * not-allowed.
+ */
+@media (hover: hover) and (pointer: fine) {
+  html,
+  .cursor-default {
+    cursor:
+      url("/brand/cursor-default.svg") 3 2,
+      default;
+  }
+  a,
+  button,
+  label,
+  summary,
+  select,
+  [role="button"],
+  [role="tab"],
+  [role="radio"],
+  [role="checkbox"],
+  [role="switch"],
+  [role="option"],
+  [role="menuitem"],
+  [role="slider"],
+  [cursor="pointer"],
+  .cursor-pointer {
+    cursor:
+      url("/brand/cursor-hover.svg") 2 2,
+      pointer;
+  }
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="color"],
+    [type="file"]
+  ),
+  textarea,
+  [contenteditable="true"] {
+    cursor:
+      url("/brand/cursor-text.svg") 8 12,
+      text;
+  }
+  [data-page-loader],
+  [aria-busy="true"] {
+    cursor:
+      url("/brand/cursor-loading.svg") 12 12,
+      progress;
+  }
+  :disabled,
+  [aria-disabled="true"],
+  .cursor-not-allowed {
+    cursor: not-allowed;
+  }
+}
+
+/* The click ripple (see CursorRipple): a soft ring that spreads from the pointer. */
+.cursor-ripple {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483647;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 1px solid rgb(237 230 214 / 55%);
+  box-shadow:
+    inset 0 0 0 6px rgb(237 230 214 / 6%),
+    0 0 12px rgb(200 255 0 / 18%);
+  animation: cursor-ripple 0.45s var(--ease-out) forwards;
+}
+@keyframes cursor-ripple {
+  from {
+    opacity: 1;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* The section-change flash: visible, then gone, within its 0.5s. */
+.route-loader {
+  animation-name: route-loader;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes route-loader {
+  0%,
+  66% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/*
+ * Page and tab transitions (React <ViewTransition>). The header, demo banner
+ * and bottom nav stay put as anchors while the content moves; the old view
+ * leaves fast so the new one never waits.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(site-header),
+::view-transition-group(site-nav),
+::view-transition-group(demo-banner) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header),
+::view-transition-old(site-nav),
+::view-transition-old(demo-banner) {
+  display: none;
+}
+::view-transition-old(.nav-forward) {
+  --vt-offset: -48px;
+  animation:
+    var(--dur-exit) var(--ease-press) both vt-fade reverse,
+    var(--dur-move) var(--ease-in-out) both vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --vt-offset: 48px;
+  animation:
+    var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
+    var(--dur-move) var(--ease-out) both vt-slide;
+}
+::view-transition-old(.nav-back) {
+  --vt-offset: 48px;
+  animation:
+    var(--dur-exit) var(--ease-press) both vt-fade reverse,
+    var(--dur-move) var(--ease-in-out) both vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --vt-offset: -48px;
+  animation:
+    var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
+    var(--dur-move) var(--ease-out) both vt-slide;
+}
+::view-transition-old(.nav-rise) {
+  animation: var(--dur-exit) var(--ease-press) both vt-fade reverse;
+}
+::view-transition-new(.nav-rise) {
+  animation:
+    var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
+    var(--dur-move) var(--ease-out) both vt-rise;
+}
+@keyframes vt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes vt-slide {
+  from {
+    translate: var(--vt-offset) 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+@keyframes vt-rise {
+  from {
+    translate: 0 12px;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* The pattern's parallax layer: a viewport plus one tile tall, behind everything. */
+.pattern-layer {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: calc(100lvh + var(--pattern-size) * 0.5628);
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* The light that follows the pointer across a tilted tile. */
+.tilt-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle at var(--glare-x, 50%) var(--glare-y, 50%),
+    rgb(255 255 255 / 16%),
+    transparent 55%
+  );
+  mix-blend-mode: overlay;
+  transition: opacity var(--dur-hover) var(--ease-out);
+}
