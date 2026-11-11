@@ -463,7 +463,11 @@ export function PitchScreen() {
               )}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
                 <HeatLegend />
-                <AttackHint orientation={show3d ? "landscape" : orientation} />
+                {show3d ? (
+                  <p className="eyebrow text-primary">Attacking direction marked on the pitch</p>
+                ) : (
+                  <AttackHint orientation={orientation} />
+                )}
                 {show3d ? (
                   <p className="text-xs text-muted-foreground">
                     <span className="pointer-coarse:hidden">

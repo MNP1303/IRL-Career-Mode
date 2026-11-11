@@ -253,6 +253,56 @@ function Fence() {
   return <instancedMesh ref={mesh} args={[geometry, material, spots.length]} castShadow />;
 }
 
+/**
+ * "ATTACKING ›››" painted along both side strips of the attacking half, so
+ * the direction of play stays readable however the pitch is turned.
+ */
+function AttackMarkings() {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 96;
+    const context = canvas.getContext("2d")!;
+    const family = getComputedStyle(document.documentElement).getPropertyValue("--font-geist") || "sans-serif";
+    context.fillStyle = "#c8ff00";
+    context.font = `600 58px ${family}`;
+    context.textBaseline = "middle";
+    context.letterSpacing = "14px";
+    context.fillText("ATTACKING", 24, 50);
+    // Chevrons pointing the way, fading in towards the goal.
+    for (let index = 0; index < 3; index += 1) {
+      const x = 640 + index * 110;
+      context.globalAlpha = 0.45 + index * 0.25;
+      context.beginPath();
+      context.moveTo(x, 18);
+      context.lineTo(x + 42, 48);
+      context.lineTo(x, 78);
+      context.lineWidth = 12;
+      context.strokeStyle = "#c8ff00";
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.stroke();
+    }
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 8;
+    return map;
+  }, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  // The strip between the turf's edge (3 m out) and the plinth's edge.
+  const offset = HALF_WIDTH + 3 + (RUN_OFF - 3) / 2;
+  return (
+    <group>
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[HALF_LENGTH / 2, 0.004, side * offset]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[34, 3.2]} />
+          <meshBasicMaterial map={texture} transparent opacity={0.8} depthWrite={false} toneMapped={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export function PitchModel({ lite, children }: { lite: boolean; children?: React.ReactNode }) {
   const turf = useTurfTexture();
   const width = PITCH.length + RUN_OFF * 2;
@@ -276,6 +326,7 @@ export function PitchModel({ lite, children }: { lite: boolean; children?: React
       <Markings />
       <Goal side={1} />
       <Goal side={-1} />
+      <AttackMarkings />
       {lite ? null : <Fence />}
       {children}
     </group>
