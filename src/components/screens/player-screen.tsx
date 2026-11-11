@@ -33,7 +33,7 @@ import {
 import { DataDialog } from "@/components/data/data-dialog";
 import { Field } from "@/components/match/form-controls";
 import { AttributeRadar } from "@/components/player/attribute-radar";
-import { PlayerCard } from "@/components/player/player-card";
+import { PlayerCardStage } from "@/components/player/player-card-stage";
 import { PositionPicker } from "@/components/pitch/position-picker";
 import {
   CountUp,
@@ -150,7 +150,7 @@ function ProfileEditor() {
   return (
     <div className="grid grid-cols-1 items-start gap-section lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10">
       <div className="lg:sticky lg:top-24">
-        <PlayerCard
+        <PlayerCardStage
           profile={preview}
           attributes={career.attributes}
           level={career.level.level}

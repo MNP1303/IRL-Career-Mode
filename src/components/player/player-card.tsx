@@ -113,6 +113,8 @@ export interface PlayerCardProps {
   level: number;
   demo?: boolean;
   interactive?: boolean;
+  /** No intro, count-up or sweep: the finished card, for rendering onto the 3D card. */
+  still?: boolean;
   className?: string;
 }
 
@@ -122,6 +124,7 @@ export function PlayerCard({
   level,
   demo,
   interactive = true,
+  still = false,
   className,
 }: PlayerCardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -147,7 +150,7 @@ export function PlayerCard({
   useEffect(() => {
     const node = ovrText.current;
     if (!node) return;
-    if (reduceMotion) {
+    if (reduceMotion || still) {
       node.textContent = String(ovr);
       return;
     }
@@ -160,7 +163,7 @@ export function PlayerCard({
       },
     });
     return () => controls.stop();
-  }, [ovr, reduceMotion]);
+  }, [ovr, reduceMotion, still]);
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
     if (!interactive || event.pointerType === "touch" || !ref.current) return;
@@ -200,7 +203,7 @@ export function PlayerCard({
       )}
     >
       <motion.div
-        initial={{ opacity: 0, y: 26, rotateY: -24 }}
+        initial={still ? false : { opacity: 0, y: 26, rotateY: -24 }}
         animate={{ opacity: 1, y: 0, rotateY: flipped ? 180 : 0 }}
         transition={{
           duration: 0.8,
@@ -214,6 +217,7 @@ export function PlayerCard({
           style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
         >
           <motion.svg
+            data-card-face="front"
             role="img"
             aria-label={summary}
             aria-hidden={flipped || undefined}
@@ -313,14 +317,17 @@ export function PlayerCard({
                 fill={`url(#fade-${uid})`}
               />
               <rect y="277" width="320" height="195" fill="#0c100c" />
-              <motion.circle
-                cx={sheenX}
-                cy={sheenY}
-                r="190"
-                fill={`url(#sheen-${uid})`}
-                style={{ mixBlendMode: "screen" }}
-              />
-              {reduceMotion ? null : (
+              {/* The 3D card lights itself, so its art leaves out the pointer sheen. */}
+              {still ? null : (
+                <motion.circle
+                  cx={sheenX}
+                  cy={sheenY}
+                  r="190"
+                  fill={`url(#sheen-${uid})`}
+                  style={{ mixBlendMode: "screen" }}
+                />
+              )}
+              {reduceMotion || still ? null : (
                 <motion.rect
                   y="-60"
                   width="70"
@@ -588,6 +595,7 @@ function CardBack({
   ).join(", ")}. ${ovr} overall, level ${level}.`;
   return (
     <svg
+      data-card-face="back"
       role="img"
       aria-label={label}
       aria-hidden={hidden || undefined}

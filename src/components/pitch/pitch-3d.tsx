@@ -1,297 +1,203 @@
 "use client";
 
 /**
- * The season heatmap as a landscape: the same density field that colours the
- * 2D map raises the turf, so the most repeated areas stand tallest. Loaded
- * only when someone switches the pitch to 3D.
+ * The 3D pitch: a floating, properly marked pitch in a dark studio, with the
+ * player's recorded zones glowing over the turf and their roles marked. The
+ * camera has an isometric view, an overhead tactical view and a focus that
+ * flies towards the most active zone of a selected match. Loaded only when
+ * the 3D view is shown.
  */
 
 import { useEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { PITCH, ZONE_COLS, ZONE_ROWS } from "@/lib/domain";
+import { PITCH, type Position } from "@/lib/domain";
 import { EASE, gsap, prefersReducedMotion } from "@/lib/gsap";
-import { densityField, heatmapCanvas, type ZoneGrid } from "@/lib/heatmap";
+import { cellIndex, type ZoneGrid } from "@/lib/heatmap";
+import { Stage } from "@/components/three/stage";
+import { OrbitRig, type CameraView } from "@/components/three/orbit-rig";
+import { PitchModel, RUN_OFF } from "@/components/pitch/scene/pitch-model";
+import {
+  HeatLayer,
+  RoleMarkers,
+  ZoneHighlight,
+  ZonePicker,
+  cellCentre,
+  type Cell,
+} from "@/components/pitch/scene/data-layers";
+import { ZONE_COLS, ZONE_ROWS } from "@/lib/domain";
 
-type Cell = { col: number; row: number };
+export type PitchView = "iso" | "overhead";
 
-// One vertex per metre is smooth enough for the gentle density field.
-const SEGMENTS_X = PITCH.length;
-const SEGMENTS_Z = PITCH.width;
-const PEAK_HEIGHT = 11;
-const TEXTURE_SCALE = 12;
-const CELL_X = PITCH.length / ZONE_COLS;
-const CELL_Z = PITCH.width / ZONE_ROWS;
-const LIME = "#c8ff00";
+const FOV = 32;
 
-/** Turf, heat and markings painted once per selection, matching the 2D pitch. */
-function paintPitch(grid: ZoneGrid) {
-  const canvas = document.createElement("canvas");
-  canvas.width = PITCH.length * TEXTURE_SCALE;
-  canvas.height = PITCH.width * TEXTURE_SCALE;
-  const context = canvas.getContext("2d")!;
-  context.scale(TEXTURE_SCALE, TEXTURE_SCALE);
-
-  context.fillStyle = "#0f2c19";
-  context.fillRect(0, 0, PITCH.length, PITCH.width);
-  context.fillStyle = "#123520";
-  const stripes = 14;
-  for (let index = 0; index < stripes; index += 2) {
-    context.fillRect((index * PITCH.length) / stripes, 0, PITCH.length / stripes, PITCH.width);
-  }
-
-  const heat = heatmapCanvas(grid);
-  if (heat) {
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.drawImage(heat, 0, 0, PITCH.length, PITCH.width);
-  }
-
-  context.strokeStyle = "rgb(255 255 255 / 78%)";
-  context.lineWidth = 0.3;
-  context.strokeRect(0, 0, PITCH.length, PITCH.width);
-  context.beginPath();
-  context.moveTo(PITCH.length / 2, 0);
-  context.lineTo(PITCH.length / 2, PITCH.width);
-  context.stroke();
-  context.beginPath();
-  context.arc(PITCH.length / 2, PITCH.width / 2, 9.15, 0, Math.PI * 2);
-  context.stroke();
-  for (const flipped of [false, true]) {
-    context.save();
-    if (flipped) {
-      context.translate(PITCH.length, 0);
-      context.scale(-1, 1);
-    }
-    context.strokeRect(0, 13.84, 16.5, 40.32);
-    context.strokeRect(0, 24.84, 5.5, 18.32);
-    context.beginPath();
-    context.arc(11, 34, 9.15, -0.9273, 0.9273);
-    context.stroke();
-    context.restore();
-  }
-  return canvas;
+/** Far enough back that the whole plinth fits the frame, whatever its shape. */
+function fitDistance(aspect: number, view: PitchView) {
+  const halfWidth = (PITCH.length + RUN_OFF * 2) / 2;
+  const halfDepth = (PITCH.width + RUN_OFF * 2) / 2;
+  const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+  // The isometric view sees the plinth corner-on, so fit its diagonal.
+  const across = view === "iso" ? Math.hypot(halfWidth, halfDepth) * 1.02 : halfWidth;
+  const byWidth = across / (tan * aspect);
+  const byHeight = (view === "iso" ? halfDepth * 1.35 : halfDepth) / tan;
+  return Math.max(byWidth, byHeight) * 1.0;
 }
 
-/** Heights for every vertex, row by row from the far touchline. */
-function heightsFor(grid: ZoneGrid) {
-  const field = densityField(grid, SEGMENTS_X + 1, SEGMENTS_Z + 1);
-  return field.map((value) => value ** 1.2 * PEAK_HEIGHT);
+function views(aspect: number) {
+  const iso = fitDistance(aspect, "iso");
+  const elevation = THREE.MathUtils.degToRad(42);
+  const azimuth = THREE.MathUtils.degToRad(-32);
+  const isoView: CameraView = {
+    position: [
+      iso * Math.cos(elevation) * Math.sin(azimuth),
+      iso * Math.sin(elevation),
+      iso * Math.cos(elevation) * Math.cos(azimuth),
+    ],
+    target: [0, -1, 0],
+  };
+  const overhead = fitDistance(aspect, "overhead");
+  const overheadView: CameraView = { position: [0, overhead, 0.01], target: [0, 0, 0] };
+  return { iso: isoView, overhead: overheadView, distance: iso };
 }
 
-function cellAt(point: THREE.Vector3): Cell | null {
-  const col = Math.floor((point.x + PITCH.length / 2) / CELL_X);
-  const row = Math.floor((point.z + PITCH.width / 2) / CELL_Z);
-  if (col < 0 || row < 0 || col >= ZONE_COLS || row >= ZONE_ROWS) return null;
-  return { col, row };
-}
-
-function cellPeak(heights: Float32Array, cell: Cell) {
-  let peak = 0;
-  const x0 = Math.floor(cell.col * CELL_X);
-  const z0 = Math.floor(cell.row * CELL_Z);
-  for (let z = z0; z <= Math.min(SEGMENTS_Z, Math.ceil(z0 + CELL_Z)); z += 1) {
-    for (let x = x0; x <= Math.min(SEGMENTS_X, Math.ceil(x0 + CELL_X)); x += 1) {
-      peak = Math.max(peak, heights[z * (SEGMENTS_X + 1) + x]);
-    }
-  }
-  return peak;
-}
-
-function Terrain({
-  grid,
-  hovered,
-  onHover,
-}: {
-  grid: ZoneGrid;
-  hovered: Cell | null;
-  onHover: (cell: Cell | null) => void;
-}) {
-  const invalidate = useThree((state) => state.invalidate);
-  const mesh = useRef<THREE.Mesh>(null);
-  // Keyed on the values, so a re-render with an equal grid repaints nothing.
-  const signature = grid.join();
-  const texture = useMemo(() => {
-    const map = new THREE.CanvasTexture(paintPitch(grid));
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 8;
-    return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const target = useMemo(() => heightsFor(grid), [signature]);
-  // Starts flat, so the first view rises out of the turf.
-  const current = useRef(new Float32Array(target.length));
-  const raised = useRef(false);
-
-  useEffect(() => () => texture.dispose(), [texture]);
-
-  useEffect(() => {
-    const geometry = mesh.current?.geometry;
-    if (!geometry) return;
-    const from = current.current.slice();
-    const position = geometry.attributes.position as THREE.BufferAttribute;
-    const progress = { value: 0 };
-    const apply = () => {
-      for (let index = 0; index < target.length; index += 1) {
-        const height = from[index] + (target[index] - from[index]) * progress.value;
-        current.current[index] = height;
-        // The plane is laid flat by rotating the mesh, so local Z is height.
-        position.setZ(index, height);
+/** The brightest recorded zone, where a selected match's camera move heads. */
+function hottestCell(grid: ZoneGrid): Cell | null {
+  let best = -1;
+  let found: Cell | null = null;
+  for (let row = 0; row < ZONE_ROWS; row += 1) {
+    for (let col = 0; col < ZONE_COLS; col += 1) {
+      const value = grid[cellIndex(col, row)];
+      if (value > best && value > 0) {
+        best = value;
+        found = { col, row };
       }
-      position.needsUpdate = true;
-      geometry.computeVertexNormals();
-      invalidate();
-    };
-    if (prefersReducedMotion()) {
-      progress.value = 1;
-      apply();
-      return;
     }
-    // The first rise waits for the camera to start moving; later filters morph in place.
-    const tween = gsap.to(progress, {
-      value: 1,
-      duration: raised.current ? 0.7 : 1.4,
-      delay: raised.current ? 0 : 0.45,
-      ease: EASE.settle,
-      onUpdate: apply,
-    });
-    raised.current = true;
-    return () => {
-      tween.kill();
-    };
-  }, [target, invalidate]);
+  }
+  return found;
+}
 
-  const peak = hovered ? cellPeak(target, hovered) : 0;
-
+/** Lighting shared by the scene: a soft key with shadows, a cool fill and a faint emerald rim. */
+function Lights({ lite }: { lite: boolean }) {
   return (
     <>
-      <mesh
-        ref={mesh}
-        rotation={[-Math.PI / 2, 0, 0]}
-        onPointerMove={(event: ThreeEvent<PointerEvent>) => {
-          event.stopPropagation();
-          onHover(cellAt(event.point));
-        }}
-        onPointerDown={(event: ThreeEvent<PointerEvent>) => onHover(cellAt(event.point))}
-        onPointerOut={() => onHover(null)}
-      >
-        <planeGeometry args={[PITCH.length, PITCH.width, SEGMENTS_X, SEGMENTS_Z]} />
-        <meshStandardMaterial
-          map={texture}
-          emissiveMap={texture}
-          emissive="#ffffff"
-          emissiveIntensity={0.32}
-          roughness={0.88}
-          metalness={0}
-        />
-      </mesh>
-      {hovered ? <HoverColumn cell={hovered} height={peak + 1.2} /> : null}
+      <hemisphereLight args={["#bfe9dc", "#0a1210", 0.42]} />
+      <directionalLight
+        position={[-60, 90, 50]}
+        intensity={1.75}
+        castShadow={!lite}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-80}
+        shadow-camera-right={80}
+        shadow-camera-top={60}
+        shadow-camera-bottom={-60}
+        shadow-camera-near={10}
+        shadow-camera-far={260}
+        shadow-bias={-0.0004}
+        shadow-radius={6}
+      />
+      <directionalLight position={[70, 25, -60]} intensity={0.55} color="#38e0a0" />
     </>
   );
 }
 
-/** A lime wireframe column over the zone under the pointer. */
-function HoverColumn({ cell, height }: { cell: Cell; height: number }) {
-  const edges = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(CELL_X, 1, CELL_Z)), []);
-  useEffect(() => () => edges.dispose(), [edges]);
-  const x = -PITCH.length / 2 + (cell.col + 0.5) * CELL_X;
-  const z = -PITCH.width / 2 + (cell.row + 0.5) * CELL_Z;
+/** A shadow catcher under the floating pitch, so it sits in space rather than on nothing. */
+function Ground() {
   return (
-    <group position={[x, height / 2, z]} scale={[1, height, 1]}>
-      <lineSegments geometry={edges}>
-        <lineBasicMaterial color={LIME} transparent opacity={0.9} />
-      </lineSegments>
-      <mesh position={[0, 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[CELL_X, CELL_Z]} />
-        <meshBasicMaterial color={LIME} transparent opacity={0.16} depthWrite={false} />
-      </mesh>
-    </group>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -6, 0]} receiveShadow>
+      <planeGeometry args={[600, 600]} />
+      <shadowMaterial transparent opacity={0.45} />
+    </mesh>
   );
 }
 
-const FOV = 38;
-const ELEVATION = THREE.MathUtils.degToRad(44);
-
-/** The resting camera: far enough back that the whole pitch fits the frame's width. */
-function homePosition(aspect: number) {
-  const halfWidth = (PITCH.length + 8) / 2;
-  // The near touchline is closer than the centre, so it needs extra room.
-  const distance = (halfWidth / (Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * aspect)) * 1.24;
-  return new THREE.Vector3(0, distance * Math.sin(ELEVATION), distance * Math.cos(ELEVATION));
-}
-
-function CameraRig({ resetKey }: { resetKey: number }) {
-  const camera = useThree((state) => state.camera);
-  const gl = useThree((state) => state.gl);
-  const size = useThree((state) => state.size);
+/** Raises the pitch into place the first time the scene appears. */
+function Rise({ children }: { children: React.ReactNode }) {
+  const group = useRef<THREE.Group>(null);
   const invalidate = useThree((state) => state.invalidate);
-  const controlsRef = useRef<OrbitControls | null>(null);
-  const introduced = useRef(false);
-
   useEffect(() => {
-    const controls = new OrbitControls(camera, gl.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enablePan = false;
-    controls.minDistance = 45;
-    controls.maxDistance = 260;
-    controls.minPolarAngle = 0.12;
-    controls.maxPolarAngle = 1.2;
-    controls.rotateSpeed = 0.6;
-    controls.zoomSpeed = 0.8;
-    // One finger keeps scrolling the page; two fingers orbit and zoom.
-    controls.touches = { ONE: null, TWO: THREE.TOUCH.DOLLY_ROTATE };
-    if (controls.domElement) controls.domElement.style.touchAction = "pan-y";
-    const onChange = () => invalidate();
-    controls.addEventListener("change", onChange);
-    controlsRef.current = controls;
-    return () => {
-      controls.removeEventListener("change", onChange);
-      controls.dispose();
-      controlsRef.current = null;
-    };
-  }, [camera, gl, invalidate]);
-
-  // Fly from a top-down view to the resting angle; the same move resets the view.
-  useEffect(() => {
-    const controls = controlsRef.current;
-    if (!controls) return;
-    const view = controls.object;
-    const home = homePosition(size.width / size.height);
-    const settle = () => {
-      controls.update();
-      invalidate();
-    };
-    controls.target.set(0, 0, 0);
-    if (prefersReducedMotion()) {
-      view.position.copy(home);
-      settle();
-      return;
-    }
-    if (!introduced.current) view.position.set(0, home.length() * 1.25, 0.1);
-    introduced.current = true;
-    const tween = gsap.to(view.position, {
-      x: home.x,
-      y: home.y,
-      z: home.z,
-      duration: 1.6,
-      ease: EASE.inOut,
-      onUpdate: settle,
-    });
+    const node = group.current;
+    if (!node || prefersReducedMotion()) return;
+    node.position.y = -10;
+    node.rotation.y = -0.18;
+    const tween = gsap.to(node.position, { y: 0, duration: 1.6, ease: EASE.settle, onUpdate: invalidate });
+    const turn = gsap.to(node.rotation, { y: 0, duration: 1.8, ease: EASE.settle, onUpdate: invalidate });
     return () => {
       tween.kill();
+      turn.kill();
+      node.position.y = 0;
+      node.rotation.y = 0;
     };
-    // Resizes shouldn't replay the flight, only an explicit reset should.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey, invalidate]);
+  }, [invalidate]);
+  return <group ref={group}>{children}</group>;
+}
 
-  useFrame(() => {
-    controlsRef.current?.update();
-  });
+function Scene({
+  grid,
+  hovered,
+  onHover,
+  lite,
+  view,
+  resetKey,
+  focusKey,
+  positions,
+}: {
+  grid: ZoneGrid;
+  hovered: Cell | null;
+  onHover: (cell: Cell | null) => void;
+  lite: boolean;
+  view: PitchView;
+  resetKey: number;
+  focusKey?: string;
+  positions: [Position, number][];
+}) {
+  const size = useThree((state) => state.size);
+  const aspect = size.width / Math.max(size.height, 1);
+  const framing = useMemo(() => views(aspect), [aspect]);
+  const hot = hottestCell(grid);
 
-  return null;
+  // A selected match pulls the camera towards its most active zone; otherwise, the chosen view.
+  let camera = view === "overhead" ? framing.overhead : framing.iso;
+  if (focusKey && hot) {
+    const [x, z] = cellCentre(hot);
+    const base = camera;
+    const pull = view === "overhead" ? 0.62 : 0.6;
+    camera = {
+      target: [x * 0.6, 0, z * 0.6],
+      position: [
+        base.position[0] * pull + x * 0.6,
+        base.position[1] * pull,
+        base.position[2] * pull + z * 0.6,
+      ],
+    };
+  }
+  const viewKey = `${view}:${focusKey ?? "all"}:${resetKey}:${Math.round(aspect * 10)}`;
+  const intro: CameraView = {
+    position: [framing.iso.position[0] * 1.5, framing.iso.position[1] * 0.55, framing.iso.position[2] * 1.5],
+    target: [0, -6, 0],
+  };
+
+  return (
+    <>
+      <Lights lite={lite} />
+      <Ground />
+      <Rise>
+        <PitchModel lite={lite}>
+          <HeatLayer grid={grid} />
+          <ZonePicker onHover={onHover} />
+          {hovered ? <ZoneHighlight cell={hovered} /> : null}
+          {positions.length ? <RoleMarkers counts={positions} /> : null}
+        </PitchModel>
+      </Rise>
+      <OrbitRig
+        view={camera}
+        viewKey={viewKey}
+        intro={intro}
+        minDistance={framing.distance * 0.35}
+        maxDistance={framing.distance * 1.6}
+        maxPolarAngle={1.25}
+      />
+    </>
+  );
 }
 
 export default function Pitch3D({
@@ -300,43 +206,42 @@ export default function Pitch3D({
   onHover,
   label,
   lite,
+  view,
   resetKey,
+  focusKey,
+  positions,
   onContextLost,
 }: {
   grid: ZoneGrid;
   hovered: Cell | null;
   onHover: (cell: Cell | null) => void;
   label: string;
-  /** Lower resolution and no antialiasing for weaker devices. */
   lite: boolean;
+  view: PitchView;
   resetKey: number;
+  focusKey?: string;
+  positions: [Position, number][];
   onContextLost: () => void;
 }) {
   return (
-    <div role="img" aria-label={label} className="size-full">
-      <Canvas
-        frameloop="demand"
-        dpr={lite ? [1, 1.25] : [1, 1.75]}
-        camera={{ fov: FOV, near: 1, far: 800, position: [0, 140, 0.1] }}
-        gl={{ antialias: !lite, alpha: true, powerPreference: lite ? "low-power" : "high-performance" }}
-        onCreated={({ gl }) => {
-          gl.domElement.addEventListener("webglcontextlost", (event) => {
-            event.preventDefault();
-            onContextLost();
-          });
-        }}
-      >
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[-40, 90, 50]} intensity={2.4} />
-        <directionalLight position={[60, 30, -40]} intensity={0.5} color={LIME} />
-        {/* The surround the pitch sits on. */}
-        <mesh position={[0, -1.01, 0]}>
-          <boxGeometry args={[PITCH.length + 8, 2, PITCH.width + 8]} />
-          <meshStandardMaterial color="#0a1f12" roughness={1} />
-        </mesh>
-        <Terrain grid={grid} hovered={hovered} onHover={onHover} />
-        <CameraRig resetKey={resetKey} />
-      </Canvas>
-    </div>
+    <Stage
+      label={label}
+      lite={lite}
+      environment={0.35}
+      camera={{ position: [0, 160, 0.01], fov: FOV, near: 1, far: 900 }}
+      onContextLost={onContextLost}
+    >
+      <Scene
+        grid={grid}
+        hovered={hovered}
+        onHover={onHover}
+        lite={lite}
+        view={view}
+        resetKey={resetKey}
+        focusKey={focusKey}
+        positions={positions}
+      />
+    </Stage>
   );
 }
+
