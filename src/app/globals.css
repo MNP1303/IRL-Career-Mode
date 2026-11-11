@@ -155,6 +155,9 @@
   --dur-exit: 160ms;
   --dur-enter: 280ms;
   --dur-move: 420ms;
+  /* Changes of context (the card travelling between pages); see the motion language in lib/gsap.ts. */
+  --dur-scene: 650ms;
+  --ease-scene: cubic-bezier(0.83, 0, 0.17, 1);
 
   /* Depth: panels float a little above the pattern; lifted items float higher. */
   --shadow-panel:
@@ -757,22 +760,6 @@
   }
 }
 
-/* The section-change flash: visible, then gone, within its 0.5s. */
-.route-loader {
-  animation-name: route-loader;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-@keyframes route-loader {
-  0%,
-  66% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
 /*
  * Page and tab transitions (React <ViewTransition>). The header, demo banner
  * and bottom nav stay put as anchors while the content moves; the old view
@@ -824,6 +811,53 @@
   animation:
     var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
     var(--dur-move) var(--ease-out) both vt-rise;
+}
+/* Clicks pass through to the live page while a transition runs. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* The player card travelling to its place on the next page, softened mid-flight. */
+::view-transition-group(.card-morph) {
+  animation-duration: var(--dur-scene);
+  animation-timing-function: var(--ease-scene);
+  z-index: 50;
+}
+::view-transition-image-pair(.card-morph) {
+  animation: var(--dur-scene) var(--ease-scene) both vt-soften;
+}
+/* Leaving for a page without it, the card recedes into the distance... */
+::view-transition-old(.card-recede) {
+  animation: 420ms var(--ease-in-out) both vt-recede;
+}
+/* ...and coming back, it rises out of it. */
+::view-transition-new(.card-rise) {
+  animation: 620ms var(--ease-out) both vt-arrive;
+}
+/* A match's result badge carrying over between the list and the match page. */
+::view-transition-group(.badge-morph) {
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-out);
+  z-index: 50;
+}
+@keyframes vt-soften {
+  40% {
+    filter: blur(2px);
+  }
+}
+@keyframes vt-recede {
+  to {
+    opacity: 0;
+    transform: perspective(900px) translate3d(0, -12px, -180px);
+    filter: blur(6px);
+  }
+}
+@keyframes vt-arrive {
+  from {
+    opacity: 0;
+    transform: perspective(900px) translate3d(0, 16px, -160px);
+    filter: blur(6px);
+  }
 }
 @keyframes vt-fade {
   from {

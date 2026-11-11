@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { ViewTransition, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -149,7 +149,9 @@ export function MatchDetailScreen() {
         <section className="panel overflow-hidden p-card sm:p-7">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div className="flex items-center gap-4 sm:gap-6">
-              <ResultBadge result={match.result} size="lg" />
+              <ViewTransition name={`match-result-${match.id}`} share="badge-morph" default="none">
+                <ResultBadge result={match.result} size="lg" />
+              </ViewTransition>
               <div>
                 <p className="eyebrow">
                   {formatDate(match.date)} · {match.format}

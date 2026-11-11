@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { PITCH, POSITION_META, ZONE_COLS, ZONE_ROWS, type Position } from "@/lib/domain";
-import { EASE, gsap, prefersReducedMotion } from "@/lib/gsap";
+import { EASE, gsap, introSeen, prefersReducedMotion } from "@/lib/gsap";
 import { densityField, rampColor, type ZoneGrid } from "@/lib/heatmap";
 import { HALF_LENGTH, HALF_WIDTH, toWorld } from "@/components/pitch/scene/pitch-model";
 
@@ -99,10 +99,12 @@ export function HeatLayer({ grid }: { grid: ZoneGrid }) {
       return;
     }
     const first = !shown.current;
+    // The first time, the heat rises after the pitch does; coming back, it's quicker.
+    const arriving = first && !introSeen("pitch-rise");
     const tween = gsap.to(progress, {
       value: 1,
-      duration: first ? 1.4 : 0.8,
-      delay: first ? 0.9 : 0,
+      duration: arriving ? 1.4 : 0.8,
+      delay: arriving ? 0.9 : first ? 0.15 : 0,
       ease: EASE.settle,
       onUpdate: apply,
     });

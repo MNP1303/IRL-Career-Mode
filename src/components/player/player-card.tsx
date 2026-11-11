@@ -115,6 +115,8 @@ export interface PlayerCardProps {
   interactive?: boolean;
   /** No intro, count-up or sweep: the finished card, for rendering onto the 3D card. */
   still?: boolean;
+  /** Play the card's entrance (off when the card is coming back into view). */
+  intro?: boolean;
   className?: string;
 }
 
@@ -125,6 +127,7 @@ export function PlayerCard({
   demo,
   interactive = true,
   still = false,
+  intro = true,
   className,
 }: PlayerCardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -150,7 +153,7 @@ export function PlayerCard({
   useEffect(() => {
     const node = ovrText.current;
     if (!node) return;
-    if (reduceMotion || still) {
+    if (reduceMotion || still || !intro) {
       node.textContent = String(ovr);
       return;
     }
@@ -163,7 +166,7 @@ export function PlayerCard({
       },
     });
     return () => controls.stop();
-  }, [ovr, reduceMotion, still]);
+  }, [ovr, reduceMotion, still, intro]);
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
     if (!interactive || event.pointerType === "touch" || !ref.current) return;
@@ -203,7 +206,7 @@ export function PlayerCard({
       )}
     >
       <motion.div
-        initial={still ? false : { opacity: 0, y: 26, rotateY: -24 }}
+        initial={still || !intro ? false : { opacity: 0, y: 26, rotateY: -24 }}
         animate={{ opacity: 1, y: 0, rotateY: flipped ? 180 : 0 }}
         transition={{
           duration: 0.8,
@@ -342,7 +345,7 @@ export function PlayerCard({
                   style={{ mixBlendMode: "screen" }}
                 />
               )}
-              {reduceMotion || still ? null : (
+              {reduceMotion || still || !intro ? null : (
                 <motion.rect
                   y="-60"
                   width="70"

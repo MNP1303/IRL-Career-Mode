@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { PITCH, type Position } from "@/lib/domain";
-import { EASE, gsap, prefersReducedMotion } from "@/lib/gsap";
+import { EASE, gsap, introSeen, markIntroSeen, prefersReducedMotion } from "@/lib/gsap";
 import { cellIndex, type ZoneGrid } from "@/lib/heatmap";
 import { Stage } from "@/components/three/stage";
 import { OrbitRig, type CameraView } from "@/components/three/orbit-rig";
@@ -110,17 +110,23 @@ function Ground() {
   );
 }
 
-/** Raises the pitch into place the first time the scene appears. */
+/** Raises the pitch into place the first time the scene appears in a session. */
 function Rise({ children }: { children: React.ReactNode }) {
   const group = useRef<THREE.Group>(null);
   const invalidate = useThree((state) => state.invalidate);
   useEffect(() => {
     const node = group.current;
-    if (!node || prefersReducedMotion()) return;
+    if (!node || prefersReducedMotion() || introSeen("pitch-rise")) return;
     node.position.y = -10;
     node.rotation.y = -0.18;
     const tween = gsap.to(node.position, { y: 0, duration: 1.6, ease: EASE.settle, onUpdate: invalidate });
-    const turn = gsap.to(node.rotation, { y: 0, duration: 1.8, ease: EASE.settle, onUpdate: invalidate });
+    const turn = gsap.to(node.rotation, {
+      y: 0,
+      duration: 1.8,
+      ease: EASE.settle,
+      onUpdate: invalidate,
+      onComplete: () => markIntroSeen("pitch-rise"),
+    });
     return () => {
       tween.kill();
       turn.kill();
@@ -192,6 +198,7 @@ function Scene({
         view={camera}
         viewKey={viewKey}
         intro={intro}
+        introKey="pitch-camera"
         minDistance={framing.distance * 0.35}
         maxDistance={framing.distance * 1.6}
         maxPolarAngle={1.25}

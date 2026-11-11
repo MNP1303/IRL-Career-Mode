@@ -102,6 +102,8 @@ export default function CardInspector({
 
   const arrive = useCallback(() => {
     const stage = stageRef.current;
+    // Closed before its card had even drawn: the page's card never left.
+    if (closing.current) return;
     onHandOver(true);
     if (reduced || !stage) {
       gsap.fromTo([stage, backdrop.current, caption.current], { opacity: 0 }, { opacity: 1, duration: 0.25 });

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LinkButton } from "@/components/shared/primitives";
 import { CursorRipple } from "@/components/brand/cursor-ripple";
-import { PageLoader, RouteLoader } from "@/components/brand/intro";
+import { PageLoader } from "@/components/brand/intro";
 import { ParallaxPattern } from "@/components/motion/parallax-pattern";
 import { CelebrationProvider } from "@/components/progression/celebration";
 import { AccountButton } from "@/components/account/account-button";
@@ -297,7 +297,6 @@ function LoadedApp({ children }: { children: ReactNode }) {
       </main>
       {inForm ? null : <BottomNav />}
       <GuestImportDialog />
-      <RouteLoader />
       <CursorRipple />
     </CelebrationProvider>
   );

@@ -5,6 +5,7 @@ import { ChevronRight, MapPin, NotebookPen } from "lucide-react";
 import { RatingChip, ResultBadge } from "@/components/shared/primitives";
 import type { Match } from "@/lib/schema";
 import { formatDay, scoreline } from "@/lib/stats";
+import { ViewTransition } from "react";
 
 const MONTHS = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" });
 
@@ -36,7 +37,10 @@ export function MatchRow({ match, xp }: { match: Match; xp?: number }) {
           <span aria-hidden className="numeral block text-[1.375rem]">{Number(match.date.slice(8, 10))}</span>
           <span aria-hidden className="eyebrow mt-0.5 block text-[0.625rem]">{MONTHS.format(new Date(`${match.date}T00:00:00Z`))}</span>
         </span>
-        <ResultBadge result={match.result} />
+        {/* The badge carries over to the match page, so the row visibly opens into it. */}
+        <ViewTransition name={`match-result-${match.id}`} share="badge-morph" default="none">
+          <ResultBadge result={match.result} />
+        </ViewTransition>
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
             <span className="truncate text-sm font-semibold">
