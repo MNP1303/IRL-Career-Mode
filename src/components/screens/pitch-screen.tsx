@@ -24,6 +24,7 @@ import {
 } from "@/components/pitch/heat-layer";
 import {
   LazyPitch3D,
+  type PitchView,
   prefersLiteRendering,
   preloadPitch3D,
   supportsWebGL,
@@ -65,12 +66,15 @@ const VIEW_KEY = "irl-career-mode:pitch-view";
 
 type Dimension = "2d" | "3d";
 
-function storedDimension(): Dimension {
+/** The remembered view, or 3D by default where the device renders it comfortably. */
+function storedDimension(lite: boolean): Dimension {
   try {
-    return localStorage.getItem(VIEW_KEY) === "3d" ? "3d" : "2d";
+    const stored = localStorage.getItem(VIEW_KEY);
+    if (stored === "3d" || stored === "2d") return stored;
   } catch {
-    return "2d";
+    // Fall through to the default.
   }
+  return lite ? "2d" : "3d";
 }
 
 function matchLabel(match: Match) {
@@ -147,10 +151,11 @@ export function PitchScreen() {
   const [webgl] = useState(supportsWebGL);
   const [lite] = useState(prefersLiteRendering);
   const [dimension, setDimension] = useState<Dimension>(() =>
-    webgl ? storedDimension() : "2d",
+    webgl ? storedDimension(lite) : "2d",
   );
   const [failed3d, setFailed3d] = useState(false);
   const [resetKey, setResetKey] = useState(0);
+  const [camera, setCamera] = useState<PitchView>("iso");
   const show3d = dimension === "3d" && webgl && !failed3d;
 
   function chooseDimension(next: Dimension) {
@@ -189,7 +194,10 @@ export function PitchScreen() {
   }, [view, selected, scoped, positionFilter, positionsPlayed]);
 
   // Memoised so hovering (which re-renders) doesn't rebuild the heatmap or the 3D terrain.
-  const contributing = useMemo(() => pool.filter((match) => match.zones.length > 0), [pool]);
+  const contributing = useMemo(
+    () => pool.filter((match) => match.zones.length > 0),
+    [pool],
+  );
   const grid = useMemo(() => aggregateZones(contributing), [contributing]);
   const shares = useMemo(() => zoneShares(grid), [grid]);
 
@@ -360,15 +368,34 @@ export function PitchScreen() {
                     />
                   </div>
                   {show3d ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setResetKey((key) => key + 1)}
-                      data-icon="inline-start"
-                    >
-                      <RotateCcw />
-                      Reset view
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Segmented
+                        label="Camera"
+                        size="sm"
+                        value={camera}
+                        onChange={(next) => {
+                          setCamera(next);
+                          setResetKey((key) => key + 1);
+                        }}
+                        options={[
+                          { value: "iso", label: "Isometric" },
+                          {
+                            value: "overhead",
+                            label: "Tactical",
+                            ariaLabel: "Overhead tactical view",
+                          },
+                        ]}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Reset camera"
+                        title="Reset camera"
+                        onClick={() => setResetKey((key) => key + 1)}
+                      >
+                        <RotateCcw />
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -382,12 +409,15 @@ export function PitchScreen() {
                 </p>
               ) : null}
               {show3d ? (
-                <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#0a1f12] sm:aspect-[16/10]">
+                <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-[radial-gradient(ellipse_at_62%_38%,#14423a_0%,#0d1c1a_52%,#0b1112_100%)] sm:aspect-[16/10]">
                   <LazyPitch3D
                     grid={grid}
                     hovered={hovered}
                     onHover={setHovered}
                     lite={lite}
+                    view={camera}
+                    focusKey={view === "match" ? selected?.id : undefined}
+                    positions={showPositions ? positionCounts : []}
                     resetKey={resetKey}
                     onFail={() => setFailed3d(true)}
                     label={
@@ -433,7 +463,11 @@ export function PitchScreen() {
               )}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
                 <HeatLegend />
-                <AttackHint orientation={show3d ? "landscape" : orientation} />
+                {show3d ? (
+                  <p className="eyebrow text-primary">Attacking direction marked on the pitch</p>
+                ) : (
+                  <AttackHint orientation={orientation} />
+                )}
                 {show3d ? (
                   <p className="text-xs text-muted-foreground">
                     <span className="pointer-coarse:hidden">
@@ -443,7 +477,15 @@ export function PitchScreen() {
                       Two fingers to orbit and zoom
                     </span>
                   </p>
-                ) : (
+                ) : null}
+                {show3d && showPositions && positionCounts.length ? (
+                  <p className="w-full text-xs text-faint">
+                    Markers show the positions you played, placed at each
+                    role&apos;s usual spot. They&apos;re approximate: the app
+                    records zones and roles, not GPS tracking.
+                  </p>
+                ) : null}
+                {
                   <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
                     <input
                       type="checkbox"
@@ -455,7 +497,7 @@ export function PitchScreen() {
                     />
                     Show positions
                   </label>
-                )}
+                }
               </div>
               <p
                 className="mt-2 min-h-5 text-sm text-foreground/85"

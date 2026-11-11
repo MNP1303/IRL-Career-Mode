@@ -7,7 +7,7 @@ import { OvrChart } from "@/components/career/charts";
 import { MilestoneTimeline, ObjectiveRow } from "@/components/career/honours";
 import { MatchRow } from "@/components/match/match-row";
 import { Tilt } from "@/components/motion/tilt";
-import { PlayerCard } from "@/components/player/player-card";
+import { PlayerCardStage } from "@/components/player/player-card-stage";
 import {
   CountUp,
   EmptyState,
@@ -150,7 +150,7 @@ export function HubScreen() {
     <div className="grid grid-cols-1 gap-x-8 gap-y-section md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-x-10">
       <div className="md:row-span-2">
         <div className="md:sticky md:top-24">
-          <PlayerCard
+          <PlayerCardStage
             profile={profile}
             attributes={career.attributes}
             level={career.level.level}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "@/lib/gsap";
 
 type Ripple = { id: number; x: number; y: number };
@@ -12,6 +12,8 @@ type Ripple = { id: number; x: number; y: number };
  */
 export function CursorRipple() {
   const [ripples, setRipples] = useState<Ripple[]>([]);
+  // A running count, so two clicks in the same instant never share a key.
+  const nextId = useRef(0);
 
   useEffect(() => {
     const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
@@ -19,7 +21,8 @@ export function CursorRipple() {
       if (event.pointerType !== "mouse" || event.button !== 0 || !fine.matches || prefersReducedMotion()) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("input, textarea, [contenteditable='true'], :disabled")) return;
-      const ripple = { id: event.timeStamp, x: event.clientX, y: event.clientY };
+      nextId.current += 1;
+      const ripple = { id: nextId.current, x: event.clientX, y: event.clientY };
       setRipples((current) => [...current.slice(-3), ripple]);
     };
     window.addEventListener("pointerdown", onDown, { capture: true, passive: true });
