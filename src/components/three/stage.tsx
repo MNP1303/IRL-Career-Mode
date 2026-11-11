@@ -106,7 +106,9 @@ export function Stage({
         onCreated={({ gl }) => {
           gl.domElement.addEventListener("webglcontextlost", (event) => {
             event.preventDefault();
-            onContextLost();
+            // Unmounting releases the context on purpose (after the canvas has left the
+            // page). Only a loss while the scene is still showing is a real failure.
+            if (gl.domElement.isConnected) onContextLost();
           });
         }}
       >
