@@ -32,6 +32,8 @@ function darkStudio() {
   panel([2.6, 5], [6, 1, 5], "#f2f0e9", 1.6); // key, front right
   panel([1.4, 4], [-6, 0.5, 4], "#f2f0e9", 0.7); // fill, front left
   panel([0.5, 6], [-5, 0, -4], "#3be8a3", 1.2); // emerald rim behind
+  panel([10, 6], [0, 1.5, 10], "#f2f0e9", 0.32); // a dim wash behind the camera, so metal facing it reads silver
+  panel([0.7, 9], [3.2, 0.5, 7.5], "#ffffff", 3.2); // a narrow strip: its reflection sweeps across glass as it turns
   return scene;
 }
 
@@ -93,6 +95,9 @@ export function Stage({
     <div role="img" aria-label={label} className={className ?? "size-full"}>
       <Canvas
         frameloop="demand"
+        // Measure the layout size, not the on-screen box, so a scene inside a moving,
+        // scaling container (the card inspector's flight) keeps its real resolution.
+        resize={{ offsetSize: true }}
         dpr={lite ? [1, 1.25] : [1, 1.75]}
         shadows={shadows && !lite ? "percentage" : false}
         camera={{ near: 0.1, far: 800, ...camera }}

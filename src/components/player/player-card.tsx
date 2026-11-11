@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 const CARD_PATH =
   "M26 0H294L320 26V384Q320 400 305 407L174 465Q160 471 146 465L15 407Q0 400 0 384V26Z";
 
-const TIER_FOIL: Record<
+export const TIER_FOIL: Record<
   CardTierId,
   { stops: [string, string, string]; accent: string; glow: string }
 > = {
@@ -234,9 +234,9 @@ export function PlayerCard({
                 <path d={CARD_PATH} />
               </clipPath>
               <linearGradient id={`base-${uid}`} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#222a20" />
-                <stop offset="0.5" stopColor="#111611" />
-                <stop offset="1" stopColor="#080b08" />
+                <stop offset="0" stopColor="#202223" />
+                <stop offset="0.5" stopColor="#141516" />
+                <stop offset="1" stopColor="#0a0b0b" />
               </linearGradient>
               <linearGradient id={`foil-${uid}`} x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0" stopColor={foil.stops[0]} />
@@ -244,7 +244,7 @@ export function PlayerCard({
                 <stop offset="1" stopColor={foil.stops[2]} />
               </linearGradient>
               <radialGradient id={`halo-${uid}`} cx="0.62" cy="0.3" r="0.6">
-                <stop offset="0" stopColor={foil.accent} stopOpacity="0.3" />
+                <stop offset="0" stopColor={foil.accent} stopOpacity="0.1" />
                 <stop offset="1" stopColor={foil.accent} stopOpacity="0" />
               </radialGradient>
               <radialGradient id={`sheen-${uid}`}>
@@ -257,16 +257,26 @@ export function PlayerCard({
                 <stop offset="1" stopColor="#fff" stopOpacity="0" />
               </radialGradient>
               <linearGradient id={`fade-${uid}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#0c100c" stopOpacity="0" />
-                <stop offset="1" stopColor="#0c100c" stopOpacity="1" />
+                <stop offset="0" stopColor="#0e0f10" stopOpacity="0" />
+                <stop offset="1" stopColor="#0e0f10" stopOpacity="1" />
               </linearGradient>
               <linearGradient id="card-bust" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#3a4638" />
-                <stop offset="1" stopColor="#141a14" />
+                <stop offset="0" stopColor="#3b3f3d" />
+                <stop offset="1" stopColor="#151717" />
               </linearGradient>
               {/* Seigaiha waves, engraved so faintly they read as texture, not decoration. */}
-              <pattern id={`lines-${uid}`} width="24" height="12" patternUnits="userSpaceOnUse">
-                <g fill="none" stroke={foil.accent} strokeOpacity="0.075" strokeWidth="0.8">
+              <pattern
+                id={`lines-${uid}`}
+                width="24"
+                height="12"
+                patternUnits="userSpaceOnUse"
+              >
+                <g
+                  fill="none"
+                  stroke={foil.accent}
+                  strokeOpacity="0.075"
+                  strokeWidth="0.8"
+                >
                   <path d="M-12 6a12 12 0 0 1 24 0M-8 6a8 8 0 0 1 16 0M-4 6a4 4 0 0 1 8 0" />
                   <path d="M12 6a12 12 0 0 1 24 0M16 6a8 8 0 0 1 16 0M20 6a4 4 0 0 1 8 0" />
                   <path d="M0 12a12 12 0 0 1 24 0M4 12a8 8 0 0 1 16 0M8 12a4 4 0 0 1 8 0" />
@@ -274,49 +284,54 @@ export function PlayerCard({
               </pattern>
             </defs>
 
-            <path d={CARD_PATH} fill={`url(#base-${uid})`} />
+            {/* data-layer marks the card's depth layers: the 3D card draws each at its own depth. */}
+            <path data-layer="base" d={CARD_PATH} fill={`url(#base-${uid})`} />
 
             <g clipPath={`url(#clip-${uid})`}>
-              <rect width="320" height="472" fill={`url(#lines-${uid})`} />
-              <rect width="320" height="300" fill={`url(#halo-${uid})`} />
-              <text
-                x="306"
-                y="214"
-                textAnchor="end"
-                fontFamily="var(--font-barlow-condensed)"
-                fontStyle="italic"
-                fontWeight="800"
-                fontSize="210"
-                fill={foil.accent}
-                fillOpacity="0.05"
-              >
-                {profile.shirtNumber}
-              </text>
+              <g data-layer="base">
+                <rect width="320" height="472" fill={`url(#lines-${uid})`} />
+                <rect width="320" height="300" fill={`url(#halo-${uid})`} />
+                <text
+                  x="306"
+                  y="214"
+                  textAnchor="end"
+                  fontFamily="var(--font-barlow-condensed)"
+                  fontStyle="italic"
+                  fontWeight="800"
+                  fontSize="210"
+                  fill={foil.accent}
+                  fillOpacity="0.05"
+                >
+                  {profile.shirtNumber}
+                </text>
+              </g>
 
-              {profile.photo ? (
-                <image
-                  href={profile.photo}
-                  x="86"
-                  y="30"
-                  width="232"
-                  height="240"
-                  preserveAspectRatio="xMidYMin slice"
-                />
-              ) : (
-                <Silhouette
-                  number={profile.shirtNumber}
-                  accent={foil.accent}
-                  uid={uid}
-                />
-              )}
+              <g data-layer="portrait">
+                {profile.photo ? (
+                  <image
+                    href={profile.photo}
+                    x="86"
+                    y="30"
+                    width="232"
+                    height="240"
+                    preserveAspectRatio="xMidYMin slice"
+                  />
+                ) : (
+                  <Silhouette
+                    number={profile.shirtNumber}
+                    accent={foil.accent}
+                    uid={uid}
+                  />
+                )}
 
-              <rect
-                y="196"
-                width="320"
-                height="82"
-                fill={`url(#fade-${uid})`}
-              />
-              <rect y="277" width="320" height="195" fill="#0c100c" />
+                <rect
+                  y="196"
+                  width="320"
+                  height="82"
+                  fill={`url(#fade-${uid})`}
+                />
+                <rect y="277" width="320" height="195" fill="#0e0f10" />
+              </g>
               {/* The 3D card lights itself, so its art leaves out the pointer sheen. */}
               {still ? null : (
                 <motion.circle
@@ -342,22 +357,24 @@ export function PlayerCard({
               )}
             </g>
 
+            {/* The printed border; the 3D card has a real metal frame instead. */}
             <path
+              data-layer="frame"
               d={CARD_PATH}
               fill="none"
               stroke={`url(#foil-${uid})`}
               strokeWidth="2.4"
             />
-            <path
-              d={CARD_PATH}
-              fill="none"
-              stroke={`url(#foil-${uid})`}
-              strokeOpacity="0.32"
-              strokeWidth="1"
-              transform="translate(160 236) scale(0.955 0.966) translate(-160 -236)"
-            />
 
-            <g fontFamily="var(--font-barlow-condensed)">
+            <g data-layer="info" fontFamily="var(--font-barlow-condensed)">
+              <path
+                d={CARD_PATH}
+                fill="none"
+                stroke={`url(#foil-${uid})`}
+                strokeOpacity="0.32"
+                strokeWidth="1"
+                transform="translate(160 236) scale(0.955 0.966) translate(-160 -236)"
+              />
               <text
                 ref={ovrText}
                 x="32"
@@ -510,7 +527,7 @@ export function PlayerCard({
 
               <text
                 x="160"
-                y="442"
+                y="437"
                 textAnchor="middle"
                 fontWeight="700"
                 fontSize="14"
@@ -521,7 +538,7 @@ export function PlayerCard({
               </text>
               <text
                 x="160"
-                y="455"
+                y="450"
                 textAnchor="middle"
                 fontWeight="600"
                 fontSize="12"
@@ -619,6 +636,7 @@ function CardBack({
         />
       </g>
       <path
+        data-layer="frame"
         d={CARD_PATH}
         fill="none"
         stroke={`url(#foil-${uid})`}
@@ -723,7 +741,7 @@ function CardBack({
         </text>
         <text
           x="160"
-          y="442"
+          y="437"
           textAnchor="middle"
           fontWeight="700"
           fontSize="14"
@@ -734,7 +752,7 @@ function CardBack({
         </text>
         <text
           x="160"
-          y="455"
+          y="450"
           textAnchor="middle"
           fontWeight="600"
           fontSize="12"

@@ -5,6 +5,11 @@
  * 3D object shows exactly the card the app already designs (tiers, foils,
  * photo, numbers) rather than a redrawn copy. An SVG drawn as an image can't
  * see the page's web fonts, so the card's font is embedded into it first.
+ *
+ * The front is drawn as separate depth layers (marked with data-layer in the
+ * SVG): the background, the portrait and the printed information. The 3D card
+ * stacks them at slightly different depths, so they shift against each other
+ * as it tilts. The printed border is left out: the 3D card has a metal frame.
  */
 
 const CARD_WIDTH = 320;
@@ -61,8 +66,22 @@ function embeddedFontCss() {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-async function svgToCanvas(svg: SVGSVGElement, scale: number, sharedDefs: SVGDefsElement | null, css: string) {
+export type CardLayer = "base" | "portrait" | "info";
+export type CardFaces = { base: HTMLCanvasElement; portrait: HTMLCanvasElement; info: HTMLCanvasElement; back: HTMLCanvasElement };
+
+async function svgToCanvas(
+  svg: SVGSVGElement,
+  scale: number,
+  sharedDefs: SVGDefsElement | null,
+  css: string,
+  layer?: CardLayer,
+) {
   const clone = svg.cloneNode(true) as SVGSVGElement;
+  // Keep only this layer's art (and anything unmarked, such as defs); always drop the printed border.
+  for (const node of Array.from(clone.querySelectorAll("[data-layer]"))) {
+    const own = node.getAttribute("data-layer");
+    if (own === "frame" || (layer && own !== layer)) node.remove();
+  }
   clone.removeAttribute("style");
   clone.removeAttribute("class");
   clone.setAttribute("width", String(CARD_WIDTH * scale));
@@ -84,21 +103,30 @@ async function svgToCanvas(svg: SVGSVGElement, scale: number, sharedDefs: SVGDef
   const canvas = document.createElement("canvas");
   canvas.width = CARD_WIDTH * scale;
   canvas.height = CARD_HEIGHT * scale;
-  canvas.getContext("2d")!.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const context = canvas.getContext("2d")!;
+  if (layer === "info") {
+    // Printed type casts a faint shadow onto the layers beneath it.
+    context.shadowColor = "rgb(0 0 0 / 55%)";
+    context.shadowBlur = 5 * scale;
+    context.shadowOffsetY = 1.5 * scale;
+  }
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
   return canvas;
 }
 
-/** Both faces of the card under `root`, rendered at `scale` times the card's 320 × 472 design. */
-export async function rasterizeCard(root: HTMLElement, scale: number) {
+/** The card under `root` (front layers and back), rendered at `scale` times its 320 × 472 design. */
+export async function rasterizeCard(root: HTMLElement, scale: number): Promise<CardFaces> {
   const front = root.querySelector<SVGSVGElement>('svg[data-card-face="front"]');
   const back = root.querySelector<SVGSVGElement>('svg[data-card-face="back"]');
   if (!front || !back) throw new Error("Card art not found");
   await document.fonts.ready;
   const css = await embeddedFontCss();
   const defs = front.querySelector("defs");
-  const [frontCanvas, backCanvas] = await Promise.all([
-    svgToCanvas(front, scale, null, css),
+  const [base, portrait, info, backCanvas] = await Promise.all([
+    svgToCanvas(front, scale, null, css, "base"),
+    svgToCanvas(front, scale, null, css, "portrait"),
+    svgToCanvas(front, scale, null, css, "info"),
     svgToCanvas(back, scale, defs, css),
   ]);
-  return { front: frontCanvas, back: backCanvas };
+  return { base, portrait, info, back: backCanvas };
 }
