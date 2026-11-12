@@ -95,6 +95,7 @@ export function PlayerCardStage(props: PlayerCardProps) {
   /** True while the inspector's card stands in for this one. */
   const [handedOver, setHandedOver] = useState(false);
   const [surface, setSurface] = useState<HTMLButtonElement | null>(null);
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   const source = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
 
@@ -180,6 +181,7 @@ export function PlayerCardStage(props: PlayerCardProps) {
                   lite={lite}
                   label={flipped ? `Back of the card. ${label}` : label}
                   surface={surface}
+                  raised={keyboardFocus}
                   onToggle={toggle}
                   onFirstFrame={markDrawn}
                   onContextLost={() => setFailed(true)}
@@ -197,6 +199,8 @@ export function PlayerCardStage(props: PlayerCardProps) {
                 aria-label={`Inspect the player card. ${label}`}
                 aria-haspopup="dialog"
                 onClick={() => setInspecting(true)}
+                onFocus={(event) => setKeyboardFocus(event.currentTarget.matches(":focus-visible"))}
+                onBlur={() => setKeyboardFocus(false)}
                 className="absolute inset-0 z-[1] rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
               />
               <div className="absolute right-0 bottom-0 z-10 flex gap-2">

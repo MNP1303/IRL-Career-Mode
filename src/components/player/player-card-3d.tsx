@@ -20,6 +20,7 @@ import * as THREE from "three";
 import { EASE, gsap, prefersReducedMotion } from "@/lib/gsap";
 import { Stage } from "@/components/three/stage";
 import type { CardFaces } from "@/components/player/card-texture";
+import { TIER_FINISH } from "@/components/player/player-card";
 import type { CardTierId } from "@/lib/engine/rules";
 
 /** The card's design is 320 × 472; one scene unit is 100 design pixels. */
@@ -39,7 +40,7 @@ const STEP = { border: 0.104, rise: 0.08 };
 const BORDER = STEP.border; // where the art's window begins
 const BEVEL = 0.014;
 /** Depths of the art layers and the glass above the core. */
-const DEPTH = { base: 0.004, portrait: 0.04, info: 0.074, glass: 0.11 } as const;
+const DEPTH = { base: 0.004, foil: 0.008, portrait: 0.04, info: 0.074, glass: 0.11 } as const;
 
 /** The card silhouette from the SVG design, centred, scaled in x and y. */
 function cardShape(sx = 1, sy = sx) {
@@ -96,13 +97,117 @@ function faceGeometry(shape: THREE.Shape) {
   return geometry;
 }
 
+/**
+ * Chrome rails standing off the card's lower edges, stepping outwards like
+ * the trim on a premium collectible. Each follows the outline from `from`
+ * (in design pixels down the card) round the point and back up the other
+ * side, `offset` out from the edge, and runs through the card's thickness.
+ */
+function railGeometry(offset: number, width: number, from: number) {
+  const base = cardShape(1).getSpacedPoints(480);
+  const scale = (border: number) => inset(-border);
+  const outer = scale(offset + width);
+  const inner = scale(offset);
+  const limit = -(from - 236) * S;
+  // The outline starts at the top left; the lower part is one unbroken run in the middle of it.
+  const run = base.filter((point) => point.y < limit);
+  const ribbon = new THREE.Shape(run.map((point) => new THREE.Vector2(point.x * outer.x, point.y * outer.y)));
+  for (const point of [...run].reverse()) ribbon.lineTo(point.x * inner.x, point.y * inner.y);
+  ribbon.closePath();
+  const depth = CORE + 0.05;
+  const geometry = new THREE.ExtrudeGeometry(ribbon, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.004,
+    bevelSegments: 2,
+    curveSegments: 4,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  return geometry;
+}
+
+/**
+ * The foil printed under the portrait: the card's own outline echoed inwards
+ * and rays fanning out from behind the player. It's drawn as a mask for a
+ * mirror-finish, iridescent layer, so it stays dark until the light catches
+ * it as the card turns, and fades out well before the name and stats.
+ */
+function useFoilTexture() {
+  const texture = useMemo(() => {
+    const k = 2; // canvas pixels per design pixel
+    const canvas = document.createElement("canvas");
+    canvas.width = 320 * k;
+    canvas.height = 472 * k;
+    const context = canvas.getContext("2d")!;
+    context.scale(k, k);
+    context.fillStyle = "#000";
+    context.fillRect(0, 0, 320, 472);
+    const outline = new Path2D("M26 0H294L320 26V384Q320 400 305 407L174 465Q160 471 146 465L15 407Q0 400 0 384V26Z");
+    context.save();
+    context.clip(outline);
+    context.strokeStyle = "#fff";
+    // Echoes of the silhouette, closer together towards the middle.
+    for (let step = 0; step < 9; step += 1) {
+      const border = 16 + step * (13 - step * 0.6);
+      const sx = (320 - 2 * border) / 320;
+      const sy = (472 - 2 * border) / 472;
+      context.save();
+      context.translate(160, 236);
+      context.scale(sx, sy);
+      context.translate(-160, -236);
+      context.lineWidth = 0.9 / Math.min(sx, sy);
+      context.globalAlpha = 0.9 - step * 0.06;
+      context.stroke(outline);
+      context.restore();
+    }
+    // Rays from behind the portrait.
+    context.globalAlpha = 0.5;
+    context.lineWidth = 0.7;
+    for (let ray = 0; ray < 48; ray += 1) {
+      const angle = (ray / 48) * Math.PI * 2;
+      context.beginPath();
+      context.moveTo(160 + Math.cos(angle) * 40, 150 + Math.sin(angle) * 40);
+      context.lineTo(160 + Math.cos(angle) * 420, 150 + Math.sin(angle) * 420);
+      context.stroke();
+    }
+    context.restore();
+    // Strongest round the portrait, gone before the name and stats.
+    context.globalCompositeOperation = "destination-in";
+    const fade = context.createLinearGradient(0, 0, 0, 472);
+    fade.addColorStop(0, "rgb(255 255 255 / 70%)");
+    fade.addColorStop(0.45, "rgb(255 255 255 / 100%)");
+    fade.addColorStop(0.68, "rgb(255 255 255 / 15%)");
+    fade.addColorStop(0.78, "rgb(255 255 255 / 0%)");
+    context.fillStyle = fade;
+    context.fillRect(0, 0, 320, 472);
+    context.globalCompositeOperation = "destination-over";
+    context.fillStyle = "#000";
+    context.fillRect(0, 0, 320, 472);
+    const map = new THREE.CanvasTexture(canvas);
+    map.anisotropy = 8;
+    return map;
+  }, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return texture;
+}
+
 /** The frame metal for each tier: silver through to champagne and platinum. */
 const METAL: Record<CardTierId, { color: string; iridescence: number }> = {
-  academy: { color: "#b4bab6", iridescence: 0 },
-  rising: { color: "#bfc9bb", iridescence: 0 },
-  "first-team": { color: "#cfd3cd", iridescence: 0.12 },
-  elite: { color: "#d6c38c", iridescence: 0.1 },
-  icon: { color: "#e6eaea", iridescence: 0.45 },
+  academy: { color: TIER_FINISH.academy.metal, iridescence: 0 },
+  rising: { color: TIER_FINISH.rising.metal, iridescence: 0 },
+  "first-team": { color: TIER_FINISH["first-team"].metal, iridescence: 0.12 },
+  elite: { color: TIER_FINISH.elite.metal, iridescence: 0.1 },
+  icon: { color: TIER_FINISH.icon.metal, iridescence: 0.45 },
+};
+
+/** The foil's metal and iridescence per tier (how strongly it shows, and the rails, come from TIER_FINISH). */
+const TIER_FOIL_METAL: Record<CardTierId, { color: string; iridescence: number }> = {
+  academy: { color: "#d9e2dc", iridescence: 0 },
+  rising: { color: "#d9e2dc", iridescence: 0.25 },
+  "first-team": { color: "#dde6d5", iridescence: 0.5 },
+  elite: { color: "#efd28c", iridescence: 0.35 },
+  icon: { color: "#f4f8f8", iridescence: 1 },
 };
 
 function useCanvasTexture(canvas: HTMLCanvasElement, anisotropy: number) {
@@ -177,6 +282,7 @@ function CardObject({
   flipped,
   celebrate,
   focus,
+  raised,
   inspect,
   lite,
   surface,
@@ -190,6 +296,7 @@ function CardObject({
   flipped: boolean;
   celebrate: boolean;
   focus: boolean;
+  raised: boolean;
   inspect: boolean;
   lite: boolean;
   surface: HTMLElement | null;
@@ -211,6 +318,7 @@ function CardObject({
     back: useCanvasTexture(faces.back, anisotropy),
   };
   const glow = useGlowTextures(accent);
+  const foil = useFoilTexture();
 
   const geometry = useMemo(() => {
     const core = new THREE.ExtrudeGeometry(cardShape(1), {
@@ -230,11 +338,13 @@ function CardObject({
     const opening = inset(FRAME.border);
     const glass = faceGeometry(cardShape(opening.x, opening.y));
     const pinstripe = new THREE.BufferGeometry().setFromPoints(cardShape(INNER.x * 0.985, INNER.y * 0.99).getPoints(64));
-    return { core, frame, step, face, glass, pinstripe };
+    const rails = [railGeometry(0.05, 0.026, 150), railGeometry(0.1, 0.02, 270)];
+    return { core, frame, step, face, glass, pinstripe, railNear: rails[0], railFar: rails[1] };
   }, []);
 
   const materials = useMemo(() => {
     const metal = METAL[tier];
+    const detail = { ...TIER_FINISH[tier], foilColor: TIER_FOIL_METAL[tier].color, iridescence: TIER_FOIL_METAL[tier].iridescence };
     const art = (map: THREE.Texture, transparent: boolean) =>
       // The art shows exactly as designed (unlit, not tone mapped); the glass above carries the reflections.
       new THREE.MeshBasicMaterial({ map, transparent, depthWrite: !transparent, toneMapped: false });
@@ -253,16 +363,40 @@ function CardObject({
       frame: new THREE.MeshPhysicalMaterial({
         color: metal.color,
         metalness: 1,
-        roughness: 0.2,
-        envMapIntensity: 1.25,
-        clearcoat: 0.35,
-        clearcoatRoughness: 0.18,
+        roughness: 0.13,
+        envMapIntensity: 1.6,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.12,
         iridescence: lite ? 0 : metal.iridescence,
         iridescenceIOR: 1.4,
         iridescenceThicknessMinimum: 200,
         iridescenceThicknessMaximum: 480,
       }),
       step: new THREE.MeshPhysicalMaterial({ color: "#3a3e41", metalness: 1, roughness: 0.34, envMapIntensity: 0.9 }),
+      rail: new THREE.MeshPhysicalMaterial({
+        color: metal.color,
+        metalness: 1,
+        roughness: 0.1,
+        envMapIntensity: 1.8,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.1,
+      }),
+      // Mirror foil seen only through its pattern, added over the print: dark until it catches the light.
+      foil: new THREE.MeshPhysicalMaterial({
+        color: detail.foilColor,
+        metalness: 1,
+        roughness: 0.24,
+        envMapIntensity: lite ? 1 : 1.5,
+        alphaMap: foil,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0.55,
+        iridescence: lite ? 0 : detail.iridescence,
+        iridescenceIOR: 1.8,
+        iridescenceThicknessMinimum: 120,
+        iridescenceThicknessMaximum: 820,
+      }),
       // Only the reflections are drawn (black, added on top), as on real glass over a print.
       glass: new THREE.MeshPhysicalMaterial({
         color: "#000000",
@@ -296,7 +430,7 @@ function CardObject({
       }),
       shadow: new THREE.MeshBasicMaterial({ map: glow.shadow, transparent: true, depthWrite: false }),
     };
-  }, [maps.base, maps.portrait, maps.info, maps.back, tier, accent, glow, lite]);
+  }, [maps.base, maps.portrait, maps.info, maps.back, tier, accent, glow, foil, lite]);
 
   useEffect(
     () => () => {
@@ -314,6 +448,12 @@ function CardObject({
   }, [materials, invalidate]);
 
   const reduced = prefersReducedMotion();
+  // Keyboard focus lifts the card into the light as hovering does, without the lean.
+  const raisedRef = useRef(raised);
+  useEffect(() => {
+    raisedRef.current = raised;
+    invalidate();
+  }, [raised, invalidate]);
   const pointer = useRef<CardPointer>({ x: 0, y: 0, inside: false });
   const drag = useRef<{ id: number; x: number; y: number; turn: number; moved: boolean } | null>(null);
   const motion = useRef({ tiltX: 0, tiltY: 0, dragTilt: 0, lift: 0, turn: flipped ? Math.PI : 0, glow: 0, focus: 0 });
@@ -451,7 +591,7 @@ function CardObject({
     const ease = 1 - Math.exp(-delta * 7);
     const targetX = hover ? -pointer.current.y * 0.16 : 0;
     const targetY = hover ? pointer.current.x * 0.24 : 0;
-    const targetLift = hover ? 0.18 : 0;
+    const targetLift = hover || (raisedRef.current && !drag.current) ? 0.18 : 0;
     state.tiltX += (targetX - state.tiltX) * ease;
     state.tiltY += (targetY - state.tiltY) * ease;
     state.lift += (targetLift - state.lift) * ease;
@@ -473,6 +613,7 @@ function CardObject({
     m.portrait.color.setScalar(brightness);
     m.info.color.setScalar(Math.min(1.08, brightness + 0.04));
     m.back.color.setScalar(brightness);
+    m.foil.opacity = TIER_FINISH[tier].foil * (0.28 + energy * 0.32 + lit * 0.18 + state.glow * 0.4);
     m.pinstripe.opacity = 0.32 + energy * 0.35 + lit * 0.2 + state.glow * 0.5;
     const shadow = shadowMesh.current;
     if (shadow) {
@@ -485,6 +626,7 @@ function CardObject({
     if (settling) invalidate();
   });
 
+  const detail = TIER_FINISH[tier];
   // The core's faces, including its bevel, so everything mounted on it sits clear of it.
   const front = CORE / 2 + 0.009;
   // The room's wash fills the view behind the card, fading out well before the canvas edge.
@@ -506,6 +648,8 @@ function CardObject({
 
       <group ref={card}>
         <mesh geometry={geometry.core} material={materials.core} />
+        {detail.rails >= 1 ? <mesh geometry={geometry.railNear} material={materials.rail} /> : null}
+        {detail.rails >= 2 ? <mesh geometry={geometry.railFar} material={materials.rail} /> : null}
         {[1, -1].map((side) => (
           <group key={side} rotation={[0, side === 1 ? 0 : Math.PI, 0]}>
             <mesh geometry={geometry.frame} material={materials.frame} position={[0, 0, front]} />
@@ -513,6 +657,9 @@ function CardObject({
             {side === 1 ? (
               <>
                 <mesh geometry={geometry.face} material={materials.base} position={[0, 0, front + DEPTH.base]} renderOrder={1} />
+                {detail.foil > 0 ? (
+                  <mesh geometry={geometry.face} material={materials.foil} position={[0, 0, front + DEPTH.foil]} renderOrder={1} />
+                ) : null}
                 <mesh
                   geometry={geometry.face}
                   material={materials.portrait}
@@ -544,6 +691,7 @@ export default function PlayerCard3D({
   flipped,
   celebrate,
   focus = false,
+  raised = false,
   inspect = false,
   lite,
   label,
@@ -561,6 +709,8 @@ export default function PlayerCard3D({
   celebrate: boolean;
   /** Brings the card into the light (while it's being inspected). */
   focus?: boolean;
+  /** Lifts the card into the light without tilting it (while it has keyboard focus). */
+  raised?: boolean;
   /** Lets the card be dragged round, and clicking turns it over. */
   inspect?: boolean;
   lite: boolean;
@@ -595,6 +745,7 @@ export default function PlayerCard3D({
         flipped={flipped}
         celebrate={celebrate}
         focus={focus}
+        raised={raised}
         inspect={inspect}
         lite={lite}
         surface={surface}
