@@ -16,10 +16,79 @@ export interface Database {
         Update: { user_id?: string; id?: string; data?: unknown; updated_at?: string };
         Relationships: [];
       };
+      gps_calibrations: {
+        Row: { id: string; user_id: string; name: string; data: unknown; created_at: string; updated_at: string };
+        Insert: { id?: string; user_id?: string; name: string; data: unknown };
+        Update: { name?: string; data?: unknown };
+        Relationships: [];
+      };
+      gps_imports: {
+        Row: {
+          id: string;
+          user_id: string;
+          fingerprint: string;
+          format: string;
+          file_name: string | null;
+          byte_size: number;
+          storage_path: string;
+          started_at: string;
+          ended_at: string;
+          point_count: number;
+          metadata: unknown;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          user_id?: string;
+          fingerprint: string;
+          format: string;
+          file_name?: string | null;
+          byte_size: number;
+          storage_path: string;
+          started_at: string;
+          ended_at: string;
+          point_count: number;
+          metadata?: unknown;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      match_gps_tracks: {
+        Row: {
+          id: string;
+          user_id: string;
+          match_id: string;
+          import_id: string;
+          calibration_id: string | null;
+          is_active: boolean;
+          heatmap_source: string;
+          algorithm_version: number;
+          quality: string;
+          summary: unknown;
+          heatmap: unknown;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Record<string, never>;
+        Update: { heatmap_source?: string };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       delete_account: { Args: Record<string, never>; Returns: undefined };
+      attach_gps_track: {
+        Args: {
+          p_match_id: string;
+          p_import_id: string;
+          p_calibration_id: string | null;
+          p_algorithm_version: number;
+          p_quality: string;
+          p_summary: unknown;
+          p_heatmap: unknown;
+        };
+        Returns: { track_id: string; replaced_import_id: string | null }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

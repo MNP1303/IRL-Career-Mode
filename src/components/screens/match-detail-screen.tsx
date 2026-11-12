@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ViewTransition, useMemo, useState } from "react";
+import { ViewTransition, useState } from "react";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -26,16 +26,8 @@ import {
 import { BadgeMedal } from "@/components/career/badge-medal";
 import { MatchForm } from "@/components/match/match-form";
 import { Tilt } from "@/components/motion/tilt";
-import {
-  HeatLayer,
-  HeatLegend,
-  ZoneBreakdown,
-} from "@/components/pitch/heat-layer";
-import {
-  AttackHint,
-  Pitch,
-  usePitchOrientation,
-} from "@/components/pitch/pitch";
+import { usePitchOrientation } from "@/components/pitch/pitch";
+import { MatchGpsPanel, MatchHeatmapSection, useMatchGps } from "@/components/gps/match-gps";
 import {
   EmptyState,
   LinkButton,
@@ -47,7 +39,6 @@ import {
 } from "@/components/shared/primitives";
 import { ATTRIBUTES, POSITION_META, RESULT_META } from "@/lib/domain";
 import { ratingBand } from "@/lib/engine/progression";
-import { gridFromCells } from "@/lib/heatmap";
 import { formatDate, scoreline } from "@/lib/stats";
 import { actions, useCareer } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -97,7 +88,7 @@ export function MatchDetailScreen() {
   const index = career.timeline.findIndex((item) => item.match.id === id);
   const previous = career.timeline[index - 1]?.match;
   const next = career.timeline[index + 1]?.match;
-  const grid = useMemo(() => gridFromCells(entry?.match.zones ?? []), [entry]);
+  const gps = useMatchGps(entry?.match);
 
   if (!entry) return <MissingMatch />;
   const { match } = entry;
@@ -195,49 +186,7 @@ export function MatchDetailScreen() {
 
       <div className="mt-block grid grid-cols-1 gap-block lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-block">
-          <section className="panel p-card">
-            <SectionTitle
-              title="Match heatmap"
-              aside={
-                match.zones.length ? (
-                  <AttackHint orientation={orientation} />
-                ) : null
-              }
-            />
-            {match.zones.length ? (
-              <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_230px] lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_230px]">
-                <div>
-                  <div className="mx-auto max-w-[min(100%,52vh)] sm:max-w-none">
-                    <Pitch
-                      decorative
-                      orientation={orientation}
-                      label={`Activity heatmap for this match, ${match.zones.length} zones recorded`}
-                      underlay={<HeatLayer grid={grid} />}
-                    />
-                  </div>
-                  <HeatLegend className="mt-3" />
-                </div>
-                <ZoneBreakdown grid={grid} />
-              </div>
-            ) : (
-              <EmptyState
-                icon={<MapPinOff />}
-                title="No map recorded"
-                action={
-                  <LinkButton
-                    href={`/matches/${match.id}/edit`}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Add pitch map
-                  </LinkButton>
-                }
-              >
-                This match won&apos;t appear in your season heatmap until zones
-                are added.
-              </EmptyState>
-            )}
-          </section>
+          <MatchHeatmapSection match={match} orientation={orientation} gps={gps} />
 
           {match.notes ? (
             <section className="panel p-card">
@@ -250,6 +199,8 @@ export function MatchDetailScreen() {
         </div>
 
         <div className="space-y-block">
+          <MatchGpsPanel match={match} gps={gps} />
+
           <section className="panel p-card">
             <SectionTitle
               title="XP earned"
@@ -389,6 +340,7 @@ export function MatchDetailScreen() {
             <AlertDialogDescription>
               Its {entry.xpGained} XP, attribute changes and any badges it
               earned will be recalculated out of your career.
+              {gps.track ? " Its GPS data will be deleted too." : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

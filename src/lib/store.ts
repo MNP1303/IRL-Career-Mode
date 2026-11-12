@@ -22,6 +22,7 @@ import {
   enqueue,
   guestHasRealData,
   mergeCareers,
+  opKey,
   pendingOpSchema,
   realMatches,
   rowsToState,
@@ -578,6 +579,36 @@ export const actions = {
     setAccount({ recovering: false });
   },
 };
+
+/** The signed-in player's id, or null in guest mode. */
+export function currentUserId() {
+  return signedInUser()?.id ?? null;
+}
+
+/**
+ * Resolves once a match is saved to the signed-in account, so rows that
+ * reference it (GPS tracking) can be written. Rejects with a readable
+ * message if it can't be synced right now.
+ */
+export async function ensureMatchSynced(matchId: string) {
+  const user = signedInUser();
+  if (!user) throw new Error("Sign in to save GPS data to your account.");
+  const key = opKey({ kind: "delete-match", id: matchId });
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (signedInUser()?.id !== user.id) throw new Error("You signed out before the GPS data was saved.");
+    if (!state?.matches.some((match) => match.id === matchId)) throw new Error("This match isn't in your career.");
+    if (!outbox[key]) return;
+    if (flushing) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      continue;
+    }
+    await flush();
+    if (outbox[key] && account.sync === "error") {
+      throw new Error(account.syncError ?? "The match couldn't be synced to your account yet.");
+    }
+  }
+  throw new Error("The match is still syncing. Try again in a moment.");
+}
 
 export function exportFile(current: AppState): CareerFile {
   return {

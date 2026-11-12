@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import type { Position } from "@/lib/domain";
 import type { ZoneGrid } from "@/lib/heatmap";
 import { WebGLBoundary } from "@/components/three/capabilities";
-import type { PitchView } from "@/components/pitch/pitch-3d";
+import type { GpsHeat, PitchView } from "@/components/pitch/pitch-3d";
 
 export { prefersLiteRendering, supportsWebGL } from "@/components/three/capabilities";
 export type { PitchView };
@@ -34,6 +34,7 @@ export function LazyPitch3D(props: {
   resetKey: number;
   focusKey?: string;
   positions: [Position, number][];
+  gps?: GpsHeat;
   onFail: () => void;
 }) {
   const { onFail, ...rest } = props;

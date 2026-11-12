@@ -26,6 +26,12 @@ import {
   type Cell,
 } from "@/components/pitch/scene/data-layers";
 import { ZONE_COLS, ZONE_ROWS } from "@/lib/domain";
+import { GpsHeatLayer } from "@/components/pitch/scene/gps-heat-layer";
+import type { DrawableGrid } from "@/lib/gps/record";
+import type { PitchDimensions } from "@/lib/gps/types";
+
+/** A GPS heatmap to show instead of the painted zones. */
+export type GpsHeat = { grid: DrawableGrid; pitch: PitchDimensions };
 
 export type PitchView = "iso" | "overhead";
 
@@ -146,6 +152,7 @@ function Scene({
   resetKey,
   focusKey,
   positions,
+  gps,
 }: {
   grid: ZoneGrid;
   hovered: Cell | null;
@@ -155,6 +162,7 @@ function Scene({
   resetKey: number;
   focusKey?: string;
   positions: [Position, number][];
+  gps?: GpsHeat;
 }) {
   const size = useThree((state) => state.size);
   const aspect = size.width / Math.max(size.height, 1);
@@ -188,9 +196,15 @@ function Scene({
       <Ground />
       <Rise>
         <PitchModel lite={lite}>
-          <HeatLayer grid={grid} />
-          <ZonePicker onHover={onHover} />
-          {hovered ? <ZoneHighlight cell={hovered} /> : null}
+          {gps ? (
+            <GpsHeatLayer grid={gps.grid} pitch={gps.pitch} />
+          ) : (
+            <>
+              <HeatLayer grid={grid} />
+              <ZonePicker onHover={onHover} />
+              {hovered ? <ZoneHighlight cell={hovered} /> : null}
+            </>
+          )}
           {positions.length ? <RoleMarkers counts={positions} /> : null}
         </PitchModel>
       </Rise>
@@ -217,6 +231,7 @@ export default function Pitch3D({
   resetKey,
   focusKey,
   positions,
+  gps,
   onContextLost,
 }: {
   grid: ZoneGrid;
@@ -228,6 +243,7 @@ export default function Pitch3D({
   resetKey: number;
   focusKey?: string;
   positions: [Position, number][];
+  gps?: GpsHeat;
   onContextLost: () => void;
 }) {
   return (
@@ -247,6 +263,7 @@ export default function Pitch3D({
         resetKey={resetKey}
         focusKey={focusKey}
         positions={positions}
+        gps={gps}
       />
     </Stage>
   );

@@ -12,6 +12,9 @@ import { Field, FieldError, OverallRating, SkillRatingsInput, Stepper } from "@/
 import { PositionPicker } from "@/components/pitch/position-picker";
 import { ZonePainter } from "@/components/pitch/zone-painter";
 import { useCelebrate } from "@/components/progression/celebration";
+import { attachPendingGps, MatchFormGps } from "@/components/gps/match-form-gps";
+import { useGpsBackend } from "@/components/gps/use-gps-backend";
+import type { PendingGpsAttachment } from "@/components/gps/wizard-state";
 import {
   ATTRIBUTES,
   FORMATS,
@@ -133,6 +136,8 @@ export function MatchForm({ editing }: { editing?: Match }) {
   }
 
   const [draft, setDraft] = useState<Draft>(() => (editing ? fromMatch(editing) : blankDraft()));
+  const gpsBackend = useGpsBackend();
+  const [gps, setGps] = useState<PendingGpsAttachment | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
 
@@ -203,8 +208,11 @@ export function MatchForm({ editing }: { editing?: Match }) {
       router.push(`/matches/${editing.id}`);
     } else {
       const match = actions.addMatch(parsed.data);
+      // GPS is attached after the match is saved, separately: it can't change or block the match.
+      if (gps) void attachPendingGps(gpsBackend, match.id, gps);
       // Visited routes stay mounted, so clear the form for the next match.
       setDraft(blankDraft());
+      setGps(null);
       celebrate(match.id);
       router.push(`/matches/${match.id}`);
     }
@@ -346,7 +354,13 @@ export function MatchForm({ editing }: { editing?: Match }) {
           <ZonePainter value={draft.zones} onChange={(value) => set("zones", value)} />
         </Section>
 
-        <Section index="05" title="Notes" aside="Optional">
+        {!editing ? (
+          <Section index="05" title="GPS file" aside="Optional">
+            <MatchFormGps format={draft.format} date={draft.date} value={gps} onChange={setGps} />
+          </Section>
+        ) : null}
+
+        <Section index={editing ? "05" : "06"} title="Notes" aside="Optional">
           <Textarea
             aria-label="Match notes"
             value={draft.notes}

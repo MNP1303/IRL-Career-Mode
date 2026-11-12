@@ -20,6 +20,8 @@ import { importGuestCareerWithToast } from "@/components/account/guest-import-di
 import { SyncDot, lastSyncedLabel, syncLabel } from "@/components/account/sync-status";
 import { PageHeader, Reveal, SectionTitle } from "@/components/shared/primitives";
 import { deleteAccount, signOut } from "@/lib/auth";
+import { supabaseBackend } from "@/lib/gps/backends/supabase";
+import { deleteAllGpsData } from "@/lib/gps/service";
 import { actions, useAccount, useCareer, type AccountSnapshot } from "@/lib/store";
 
 const BENEFITS = [
@@ -132,6 +134,8 @@ function SignedIn({ account }: { account: AccountSnapshot }) {
 
   async function doDelete() {
     setBusy(true);
+    // Database rows go with the login (cascade), but stored GPS files must be removed through Storage first.
+    await deleteAllGpsData(supabaseBackend).catch(() => undefined);
     const result = await deleteAccount();
     setBusy(false);
     setConfirm(null);
@@ -178,7 +182,7 @@ function SignedIn({ account }: { account: AccountSnapshot }) {
       <section className="panel border-destructive/25 p-card sm:p-6">
         <SectionTitle title="Delete account" />
         <p className="text-sm text-muted-foreground">
-          Permanently removes your login and every synced match. Export a backup from Matches first if you want a copy.
+          Permanently removes your login, every synced match and any GPS imports and files. Export a backup from Matches first if you want a copy.
         </p>
         <Button variant="destructive" className="mt-4" onClick={() => setConfirm("delete")} data-icon="inline-start">
           <Trash2 />

@@ -30,6 +30,7 @@ Without any setup the app runs in guest mode and saves to the browser, as before
 
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
 2. Open **SQL Editor**, paste the contents of [`supabase/migrations/20261105120000_accounts.sql`](supabase/migrations/20261105120000_accounts.sql) and select **Run**. It creates the `profiles` and `matches` tables with row-level security, and is safe to run again.
+3. For GPS imports, run [`supabase/migrations/20261112120000_gps_tracking.sql`](supabase/migrations/20261112120000_gps_tracking.sql) the same way, after the first one. It adds three owner-only tables, an `attach_gps_track` function and a private `gps-files` storage bucket. It needs Postgres 15 or newer (every current Supabase project is). Guests don't need it: their GPS data stays in the browser.
 
 ### 2. Configure sign-in
 
@@ -58,7 +59,7 @@ Never put the **secret** or `service_role` key in this app. Everything here runs
 - Every change is saved locally first, then sent to Supabase. If you're offline or a request fails, changes wait in a queue (kept in the browser) and retry automatically or from **Account → Sync now**.
 - The app pulls from the server when you sign in and when you return to the tab, so matches logged on another device appear.
 - Signing out removes the account's copy from that browser and returns to the guest career.
-- **Account → Delete account** removes the login and every synced match.
+- **Account → Delete account** removes the login, every synced match and all GPS imports and files.
 
 ## How progression works
 
@@ -72,6 +73,29 @@ The rules live in `src/lib/engine/rules.ts`, and the in-app **Career → How it 
 
 All ratings are self-assessed, so the card shows your own view of your game, not an external scouting report.
 
+## GPS tracking
+
+A match can carry a GPS recording from a watch or phone, turned into a heatmap and match metrics. It's purely analytical: **GPS never changes ratings, XP, attributes or any match stat**, and manual zones stay exactly as logged.
+
+**Import** from a match page (**GPS tracking → Import GPS file**) or while logging a match (step 05). The wizard runs entirely in the browser, with parsing and processing in a Web Worker, and nothing is saved until the last step:
+
+1. **File**: GPX 1.0/1.1, TCX or FIT, up to 25 MB. The format is detected from the contents, never the extension. XML with a DTD or entities is refused, and FIT files are checksum-verified with Garmin's official decoder.
+2. **Preview**: date, duration, route (on a plain metre grid; no map tiles are loaded, so the location isn't sent anywhere), point count, whole-recording metrics and anything screening noticed.
+3. **Trim**: one or more playing intervals, to leave out warm-ups and breaks. Nothing assumes 90 minutes or two halves; intervals are never joined, and an interval can be marked "teams switched ends".
+4. **Pitch**: a 5-, 7- or 11-a-side preset or a custom size, plus the four corners, placed on the route, dragged, moved from the keyboard or pasted as coordinates from any map app. Named pitches can be saved and reused. The pitch is fitted with a rigid transform (rotation and translation only), so a mismatch between the corners and the size is reported, never stretched away.
+5. **Heatmap**: quality (Usable, Approximate or Insufficient, with reasons), metrics with their provenance, and every excluded point counted by reason.
+6. **Attach**: explicit confirmation. Replacing, re-trimming, recalibrating and removing are on the match page.
+
+**Quality.** Watch GPS is typically accurate to 3–10 m, and every GPS view says so. Screening excludes duplicate or out-of-order timestamps, low-accuracy fixes and impossible jumps (over 12 m/s), splits the recording at gaps, and never counts a gap as standing still. Insufficient recordings get no heatmap and point back to manual zones. The thresholds live in `src/lib/gps/screen.ts` and `src/lib/gps/quality.ts`.
+
+**Heatmap.** Time-weighted (sampling rate doesn't change intensity), on a 1 m grid that extends 5 m past the lines so a player on the touchline is counted where recorded, with a light 2 m Gaussian blur. Positions are classified, never snapped. The same grid drives the 2D view (at the pitch's true proportions) and a single texture on the 3D pitch.
+
+**Metrics.** Each one is labelled *from device*, *calculated*, *approximate* or *unavailable*: playing and tracked time, calculated distance (kept separate from the device's own), average speed over tracked time, a spike-proof top speed, heart rate only where it was recorded, and sprints only with every-second sampling.
+
+**Storage.** Guests keep GPS data in the browser (IndexedDB). Signed-in players' data goes to Supabase: owner-only tables, ownership of the match enforced by the database (composite foreign keys plus RLS), source files in a private bucket under the player's own folder, and an atomic attach-and-replace function. Match lists never load GPS data; the heatmap grid loads only when shown. Raw coordinates are stored only in the original file, which is what makes re-trimming and recalibrating possible. Removing GPS from a match deletes its tracking and the file but never the match.
+
+**Not yet:** Strava, Apple Health, Garmin Connect and Outplay sync; live phone GPS. A provider would implement `ActivitySource` in `src/lib/gps/adapter.ts` and produce the same normalised activity.
+
 ## Architecture
 
 The whole career is a pure replay of the match log (`computeCareer`). XP, attributes, badges and milestones are never stored, so editing, deleting or importing a match can't leave stale numbers behind.
@@ -82,7 +106,8 @@ src/
   components/
     screens/           One client screen per route
     player/            Player card, attribute radar
-    pitch/             SVG pitch, position picker, zone painter, heatmap
+    pitch/             SVG pitch, position picker, zone painter, heatmap, 3D pitch
+    gps/               GPS import wizard, 2D GPS heatmap, match GPS panel
     match/             Match form and list rows
     career/            Charts, badges, timeline, rules page
     progression/       Post-match celebration sequence
@@ -98,9 +123,11 @@ src/
     auth.ts            Sign-in, sign-up, password reset and account deletion
     supabase.ts        Supabase client and database types
     heatmap.ts         Zone aggregation and density rendering
+    gps/               GPS parsing, screening, calibration, heatmap engine, metrics, storage (unit tested)
     sample-data.ts     Demo career
 supabase/
-  migrations/          Database schema and row-level security policies
+  migrations/          Database schema, row-level security and storage policies
+scripts/gps/           Regenerates the synthetic FIT test fixture
 ```
 
 ## Data
