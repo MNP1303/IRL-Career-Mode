@@ -9,6 +9,7 @@ import { EASE, ScrollTrigger, gsap, prefersReducedMotion, useGSAP } from "@/lib/
 import type { AchievementState, Milestone } from "@/lib/engine/career";
 import { formatDate } from "@/lib/stats";
 import { cn } from "@/lib/utils";
+import { useRevisit } from "@/components/motion/revisit";
 
 const FORMATTED_TARGET = new Intl.NumberFormat("en-GB");
 
@@ -70,10 +71,11 @@ export function AchievementGrid({ achievements }: { achievements: AchievementSta
     .filter((entry) => !entry.unlockedOn)
     .sort((a, b) => b.current / b.def.target - a.current / a.def.target);
   const grid = useRef<HTMLUListElement>(null);
+  const revisit = useRevisit();
 
   useGSAP(
     () => {
-      if (prefersReducedMotion()) return;
+      if (prefersReducedMotion() || revisit.current) return;
       const cards = gsap.utils.toArray<HTMLElement>("[data-badge]");
       gsap.set(cards, { opacity: 0, y: 16 });
       // Cards arrive in rows as they scroll into view; earned medals land with a small pop.

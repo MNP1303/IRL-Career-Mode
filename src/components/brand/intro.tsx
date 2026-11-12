@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BallReveal } from "@/components/brand/ball-reveal";
 import { prefersReducedMotion } from "@/lib/gsap";
@@ -13,10 +12,6 @@ const LOADER_KEY = "irl-career-mode:loader";
 const PAGE_DURATION = 4;
 const PAGE_FORMED_MS = PAGE_DURATION * 1000 * 0.48 + 150;
 const PAGE_FADE_MS = 350;
-
-/** Changing section: the same formation, compressed into 0.5s in all (whole by ~0.33s, then a fade). */
-const ROUTE_DURATION = 0.7;
-const ROUTE_TOTAL_MS = 500;
 
 function loaderEnabled() {
   if (prefersReducedMotion()) return false;
@@ -88,41 +83,6 @@ export function PageLoader({ ready }: { ready: boolean }) {
           Skip
         </button>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * A 0.5s flash of the formation each time you move to another section. Its
- * backdrop fades out from the centre so the page can be seen sliding in
- * around it. It never blocks clicks, and it's off under reduced motion.
- */
-export function RouteLoader() {
-  const pathname = usePathname();
-  const [shownFor, setShownFor] = useState(pathname);
-  const [run, setRun] = useState(0);
-  const [finished, setFinished] = useState(0);
-
-  // Adjusting state during render when the route changes, as React recommends over an effect.
-  if (shownFor !== pathname) {
-    setShownFor(pathname);
-    if (loaderEnabled()) setRun(run + 1);
-  }
-
-  if (run === 0 || finished === run) return null;
-
-  return (
-    <div
-      key={run}
-      data-route-loader
-      aria-hidden
-      onAnimationEnd={(event) => {
-        if (event.target === event.currentTarget) setFinished(run);
-      }}
-      className="route-loader pointer-events-none fixed inset-0 z-[65] grid place-items-center bg-[radial-gradient(circle_at_center,rgb(10_9_8/92%)_0,rgb(10_9_8/70%)_16%,transparent_42%)]"
-      style={{ animationDuration: `${ROUTE_TOTAL_MS}ms` }}
-    >
-      <BallReveal duration={ROUTE_DURATION} size="min(40vw, 30vh, 220px)" />
     </div>
   );
 }

@@ -155,6 +155,15 @@
   --dur-exit: 160ms;
   --dur-enter: 280ms;
   --dur-move: 420ms;
+  /* Changes of context (the card travelling between pages); see the motion language in lib/gsap.ts. */
+  --dur-scene: 650ms;
+  --ease-scene: cubic-bezier(0.83, 0, 0.17, 1);
+  /* Section changes: the old page leaves on an ease-in, the new one lands on a long ease-out. */
+  --dur-scene-out: 460ms;
+  --dur-scene-in: 900ms;
+  --dur-scene-gap: 120ms;
+  --ease-scene-in: cubic-bezier(0.55, 0, 0.75, 0.2);
+  --ease-scene-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Depth: panels float a little above the pattern; lifted items float higher. */
   --shadow-panel:
@@ -757,22 +766,6 @@
   }
 }
 
-/* The section-change flash: visible, then gone, within its 0.5s. */
-.route-loader {
-  animation-name: route-loader;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-@keyframes route-loader {
-  0%,
-  66% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
 /*
  * Page and tab transitions (React <ViewTransition>). The header, demo banner
  * and bottom nav stay put as anchors while the content moves; the old view
@@ -793,37 +786,130 @@
 ::view-transition-old(demo-banner) {
   display: none;
 }
-::view-transition-old(.nav-forward) {
-  --vt-offset: -24px;
-  animation:
-    var(--dur-exit) var(--ease-press) both vt-fade reverse,
-    var(--dur-move) var(--ease-in-out) both vt-slide reverse;
+/*
+ * Moving between sections is a move through one space: the page you leave
+ * falls back into the dark and slides away, and the next comes forward out
+ * of it from the direction you travelled, revealed by a soft-edged sweep.
+ * Opening something on a page (a match) pushes in instead: the page grows
+ * past you as the detail rises up. Both finish in under a second and never
+ * block clicks.
+ */
+::view-transition-old(.nav-forward),
+::view-transition-old(.nav-back),
+::view-transition-old(.nav-rise) {
+  transform-origin: 50% 40vh;
+  animation: var(--dur-scene-out) var(--ease-scene-in) both vt-depart;
 }
-::view-transition-new(.nav-forward) {
-  --vt-offset: 24px;
-  animation:
-    var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
-    var(--dur-move) var(--ease-out) both vt-slide;
+::view-transition-old(.nav-forward) {
+  --vt-shift: -4%;
 }
 ::view-transition-old(.nav-back) {
-  --vt-offset: 24px;
+  --vt-shift: 4%;
+}
+::view-transition-old(.nav-rise) {
+  animation-name: vt-push-out;
+}
+::view-transition-new(.nav-forward),
+::view-transition-new(.nav-back) {
+  transform-origin: 50% 40vh;
+  -webkit-mask-image: linear-gradient(var(--vt-sweep), #000 42%, transparent 58%);
+  mask-image: linear-gradient(var(--vt-sweep), #000 42%, transparent 58%);
+  -webkit-mask-size: 240% 100%;
+  mask-size: 240% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation:
+    var(--dur-scene-in) var(--ease-scene-out) var(--dur-scene-gap) both vt-approach,
+    var(--dur-scene-in) var(--ease-scene) var(--dur-scene-gap) both vt-sweep;
+}
+::view-transition-new(.nav-forward) {
+  --vt-shift: 5%;
+  --vt-sweep: to left;
+  --vt-sweep-from: 0%;
+  --vt-sweep-to: 100%;
+}
+::view-transition-new(.nav-back) {
+  --vt-shift: -5%;
+  --vt-sweep: to right;
+  --vt-sweep-from: 100%;
+  --vt-sweep-to: 0%;
+}
+::view-transition-new(.nav-rise) {
+  transform-origin: 50% 40vh;
+  animation: var(--dur-scene-in) var(--ease-scene-out) var(--dur-scene-gap) both vt-push-in;
+}
+
+/* Tabs inside a page are routine, so they only slide a little. */
+::view-transition-old(.tab-forward),
+::view-transition-old(.tab-back) {
   animation:
     var(--dur-exit) var(--ease-press) both vt-fade reverse,
     var(--dur-move) var(--ease-in-out) both vt-slide reverse;
 }
-::view-transition-new(.nav-back) {
+::view-transition-old(.tab-forward) {
   --vt-offset: -24px;
+}
+::view-transition-old(.tab-back) {
+  --vt-offset: 24px;
+}
+::view-transition-new(.tab-forward),
+::view-transition-new(.tab-back) {
   animation:
     var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
     var(--dur-move) var(--ease-out) both vt-slide;
 }
-::view-transition-old(.nav-rise) {
-  animation: var(--dur-exit) var(--ease-press) both vt-fade reverse;
+::view-transition-new(.tab-forward) {
+  --vt-offset: 24px;
 }
-::view-transition-new(.nav-rise) {
-  animation:
-    var(--dur-enter) var(--ease-out) var(--dur-exit) both vt-fade,
-    var(--dur-move) var(--ease-out) both vt-rise;
+::view-transition-new(.tab-back) {
+  --vt-offset: -24px;
+}
+/* Clicks pass through to the live page while a transition runs. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* The player card travelling to its place on the next page, softened mid-flight. */
+::view-transition-group(.card-morph) {
+  animation-duration: var(--dur-scene);
+  animation-timing-function: var(--ease-scene);
+  z-index: 50;
+}
+::view-transition-image-pair(.card-morph) {
+  animation: var(--dur-scene) var(--ease-scene) both vt-soften;
+}
+/* Leaving for a page without it, the card recedes into the distance... */
+::view-transition-old(.card-recede) {
+  animation: 420ms var(--ease-in-out) both vt-recede;
+}
+/* ...and coming back, it rises out of it. */
+::view-transition-new(.card-rise) {
+  animation: 620ms var(--ease-out) both vt-arrive;
+}
+/* A match's result badge carrying over between the list and the match page. */
+::view-transition-group(.badge-morph) {
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-out);
+  z-index: 50;
+}
+@keyframes vt-soften {
+  40% {
+    filter: blur(2px);
+  }
+}
+@keyframes vt-recede {
+  to {
+    opacity: 0;
+    transform: perspective(900px) translate3d(0, -12px, -180px);
+    filter: blur(6px);
+  }
+}
+@keyframes vt-arrive {
+  from {
+    opacity: 0;
+    transform: perspective(900px) translate3d(0, 16px, -160px);
+    filter: blur(6px);
+  }
 }
 @keyframes vt-fade {
   from {
@@ -841,12 +927,42 @@
     translate: 0 0;
   }
 }
-@keyframes vt-rise {
+@keyframes vt-depart {
+  to {
+    opacity: 0;
+    transform: translate3d(var(--vt-shift, 0), 0, 0) scale(0.9);
+    filter: blur(10px) brightness(0.45);
+  }
+}
+@keyframes vt-approach {
   from {
-    translate: 0 12px;
+    opacity: 0;
+    transform: translate3d(var(--vt-shift, 0), 0, 0) scale(1.05);
+    filter: blur(14px) brightness(1.25);
+  }
+}
+@keyframes vt-sweep {
+  from {
+    -webkit-mask-position: var(--vt-sweep-from) 0;
+    mask-position: var(--vt-sweep-from) 0;
   }
   to {
-    translate: 0 0;
+    -webkit-mask-position: var(--vt-sweep-to) 0;
+    mask-position: var(--vt-sweep-to) 0;
+  }
+}
+@keyframes vt-push-out {
+  to {
+    opacity: 0;
+    transform: scale(1.06);
+    filter: blur(10px) brightness(0.5);
+  }
+}
+@keyframes vt-push-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0) scale(0.94);
+    filter: blur(12px);
   }
 }
 @media (prefers-reduced-motion: reduce) {

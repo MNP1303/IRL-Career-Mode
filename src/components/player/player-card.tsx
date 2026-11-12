@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 const CARD_PATH =
   "M26 0H294L320 26V384Q320 400 305 407L174 465Q160 471 146 465L15 407Q0 400 0 384V26Z";
 
-const TIER_FOIL: Record<
+export const TIER_FOIL: Record<
   CardTierId,
   { stops: [string, string, string]; accent: string; glow: string }
 > = {
@@ -50,12 +50,37 @@ const TIER_FOIL: Record<
     accent: "#ecff7a",
     glow: "rgb(240 240 90 / 30%)",
   },
+  // Pearl: white through ice blue to lilac, the one tier that leaves the lime behind.
   icon: {
-    stops: ["#ffffff", "#c8ff2e", "#8ff5ff"],
-    accent: "#ffffff",
-    glow: "rgb(230 255 170 / 36%)",
+    stops: ["#ffffff", "#aeeeff", "#dcc4ff"],
+    accent: "#e6f9ff",
+    glow: "rgb(185 235 255 / 34%)",
   },
 };
+
+/**
+ * The finishes each tier earns, shared by the flat and 3D cards: how strongly
+ * the foil pattern shows, how many chrome rails stand off the lower edges,
+ * and the rails' metal. An Academy card is plain; each step up adds to it.
+ */
+export const TIER_FINISH: Record<CardTierId, { foil: number; rails: 0 | 1 | 2; metal: string }> = {
+  academy: { foil: 0, rails: 0, metal: "#b4bab6" },
+  rising: { foil: 0.55, rails: 0, metal: "#bfc9bb" },
+  "first-team": { foil: 0.85, rails: 1, metal: "#cfd3cd" },
+  elite: { foil: 1, rails: 2, metal: "#d6c38c" },
+  icon: { foil: 1.2, rails: 2, metal: "#e6eaea" },
+};
+
+/** The rails: `offset` out from the card's edge, from `from` (design pixels down) round the point. */
+const RAILS = [
+  { offset: 6.3, width: 2.6, from: 150 },
+  { offset: 11, width: 2, from: 270 },
+] as const;
+
+/** Scales the card outline about its centre so it sits `offset` outside the edge. */
+function outlineAt(offset: number) {
+  return `translate(160 236) scale(${(320 + 2 * offset) / 320} ${(472 + 2 * offset) / 472}) translate(-160 -236)`;
+}
 
 function fittedNameSize(name: string) {
   return name.length > 13 ? Math.max(20, (38 * 13) / name.length) : 38;
@@ -115,6 +140,8 @@ export interface PlayerCardProps {
   interactive?: boolean;
   /** No intro, count-up or sweep: the finished card, for rendering onto the 3D card. */
   still?: boolean;
+  /** Play the card's entrance (off when the card is coming back into view). */
+  intro?: boolean;
   className?: string;
 }
 
@@ -125,6 +152,7 @@ export function PlayerCard({
   demo,
   interactive = true,
   still = false,
+  intro = true,
   className,
 }: PlayerCardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -137,6 +165,7 @@ export function PlayerCard({
   const ovr = overallFor(attributes, position);
   const tier = cardTierFor(ovr);
   const foil = TIER_FOIL[tier.id];
+  const finish = TIER_FINISH[tier.id];
 
   const pointerX = useMotionValue(0.5);
   const pointerY = useMotionValue(0.35);
@@ -150,7 +179,7 @@ export function PlayerCard({
   useEffect(() => {
     const node = ovrText.current;
     if (!node) return;
-    if (reduceMotion || still) {
+    if (reduceMotion || still || !intro) {
       node.textContent = String(ovr);
       return;
     }
@@ -163,7 +192,7 @@ export function PlayerCard({
       },
     });
     return () => controls.stop();
-  }, [ovr, reduceMotion, still]);
+  }, [ovr, reduceMotion, still, intro]);
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
     if (!interactive || event.pointerType === "touch" || !ref.current) return;
@@ -203,7 +232,7 @@ export function PlayerCard({
       )}
     >
       <motion.div
-        initial={still ? false : { opacity: 0, y: 26, rotateY: -24 }}
+        initial={still || !intro ? false : { opacity: 0, y: 26, rotateY: -24 }}
         animate={{ opacity: 1, y: 0, rotateY: flipped ? 180 : 0 }}
         transition={{
           duration: 0.8,
@@ -234,9 +263,9 @@ export function PlayerCard({
                 <path d={CARD_PATH} />
               </clipPath>
               <linearGradient id={`base-${uid}`} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#222a20" />
-                <stop offset="0.5" stopColor="#111611" />
-                <stop offset="1" stopColor="#080b08" />
+                <stop offset="0" stopColor="#202223" />
+                <stop offset="0.5" stopColor="#141516" />
+                <stop offset="1" stopColor="#0a0b0b" />
               </linearGradient>
               <linearGradient id={`foil-${uid}`} x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0" stopColor={foil.stops[0]} />
@@ -244,7 +273,7 @@ export function PlayerCard({
                 <stop offset="1" stopColor={foil.stops[2]} />
               </linearGradient>
               <radialGradient id={`halo-${uid}`} cx="0.62" cy="0.3" r="0.6">
-                <stop offset="0" stopColor={foil.accent} stopOpacity="0.3" />
+                <stop offset="0" stopColor={foil.accent} stopOpacity="0.1" />
                 <stop offset="1" stopColor={foil.accent} stopOpacity="0" />
               </radialGradient>
               <radialGradient id={`sheen-${uid}`}>
@@ -256,17 +285,49 @@ export function PlayerCard({
                 />
                 <stop offset="1" stopColor="#fff" stopOpacity="0" />
               </radialGradient>
+              <linearGradient id={`rail-${uid}`} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#4a4f4c" />
+                <stop offset="0.45" stopColor={finish.metal} />
+                <stop offset="0.6" stopColor="#ffffff" />
+                <stop offset="1" stopColor="#3a3e3c" />
+              </linearGradient>
+              {RAILS.map((rail, index) => (
+                <clipPath key={rail.from} id={`rail-clip-${index}-${uid}`}>
+                  <rect x="-40" y={rail.from} width="400" height="360" />
+                </clipPath>
+              ))}
+              {/* The foil shows faintly everywhere and brightly where the light falls. */}
+              <mask id={`foil-mask-${uid}`} maskUnits="userSpaceOnUse" x="0" y="0" width="320" height="472">
+                <rect width="320" height="472" fill="#fff" fillOpacity={0.2 * finish.foil} />
+                {still ? null : (
+                  <motion.circle cx={sheenX} cy={sheenY} r="150" fill={`url(#foil-light-${uid})`} />
+                )}
+              </mask>
+              <radialGradient id={`foil-light-${uid}`}>
+                <stop offset="0" stopColor="#fff" stopOpacity={Math.min(1, 0.9 * finish.foil)} />
+                <stop offset="1" stopColor="#fff" stopOpacity="0" />
+              </radialGradient>
               <linearGradient id={`fade-${uid}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#0c100c" stopOpacity="0" />
-                <stop offset="1" stopColor="#0c100c" stopOpacity="1" />
+                <stop offset="0" stopColor="#0e0f10" stopOpacity="0" />
+                <stop offset="1" stopColor="#0e0f10" stopOpacity="1" />
               </linearGradient>
               <linearGradient id="card-bust" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#3a4638" />
-                <stop offset="1" stopColor="#141a14" />
+                <stop offset="0" stopColor="#3b3f3d" />
+                <stop offset="1" stopColor="#151717" />
               </linearGradient>
               {/* Seigaiha waves, engraved so faintly they read as texture, not decoration. */}
-              <pattern id={`lines-${uid}`} width="24" height="12" patternUnits="userSpaceOnUse">
-                <g fill="none" stroke={foil.accent} strokeOpacity="0.075" strokeWidth="0.8">
+              <pattern
+                id={`lines-${uid}`}
+                width="24"
+                height="12"
+                patternUnits="userSpaceOnUse"
+              >
+                <g
+                  fill="none"
+                  stroke={foil.accent}
+                  strokeOpacity="0.075"
+                  strokeWidth="0.8"
+                >
                   <path d="M-12 6a12 12 0 0 1 24 0M-8 6a8 8 0 0 1 16 0M-4 6a4 4 0 0 1 8 0" />
                   <path d="M12 6a12 12 0 0 1 24 0M16 6a8 8 0 0 1 16 0M20 6a4 4 0 0 1 8 0" />
                   <path d="M0 12a12 12 0 0 1 24 0M4 12a8 8 0 0 1 16 0M8 12a4 4 0 0 1 8 0" />
@@ -274,49 +335,105 @@ export function PlayerCard({
               </pattern>
             </defs>
 
-            <path d={CARD_PATH} fill={`url(#base-${uid})`} />
+            {/* Chrome rails off the lower edges, for the tiers that have earned them (the 3D card builds real ones). */}
+            {still
+              ? null
+              : RAILS.slice(0, finish.rails).map((rail, index) => (
+                  <g key={rail.from} clipPath={`url(#rail-clip-${index}-${uid})`}>
+                    <path
+                      d={CARD_PATH}
+                      fill="none"
+                      stroke={`url(#rail-${uid})`}
+                      strokeWidth={rail.width}
+                      vectorEffect="non-scaling-stroke"
+                      transform={outlineAt(rail.offset)}
+                    />
+                  </g>
+                ))}
+
+            {/* data-layer marks the card's depth layers: the 3D card draws each at its own depth. */}
+            <path data-layer="base" d={CARD_PATH} fill={`url(#base-${uid})`} />
 
             <g clipPath={`url(#clip-${uid})`}>
-              <rect width="320" height="472" fill={`url(#lines-${uid})`} />
-              <rect width="320" height="300" fill={`url(#halo-${uid})`} />
-              <text
-                x="306"
-                y="214"
-                textAnchor="end"
-                fontFamily="var(--font-barlow-condensed)"
-                fontStyle="italic"
-                fontWeight="800"
-                fontSize="210"
-                fill={foil.accent}
-                fillOpacity="0.05"
-              >
-                {profile.shirtNumber}
-              </text>
+              <g data-layer="base">
+                <rect width="320" height="472" fill={`url(#lines-${uid})`} />
+                <rect width="320" height="300" fill={`url(#halo-${uid})`} />
+                <text
+                  x="306"
+                  y="214"
+                  textAnchor="end"
+                  fontFamily="var(--font-barlow-condensed)"
+                  fontStyle="italic"
+                  fontWeight="800"
+                  fontSize="210"
+                  fill={foil.accent}
+                  fillOpacity="0.05"
+                >
+                  {profile.shirtNumber}
+                </text>
+              </g>
 
-              {profile.photo ? (
-                <image
-                  href={profile.photo}
-                  x="86"
-                  y="30"
-                  width="232"
-                  height="240"
-                  preserveAspectRatio="xMidYMin slice"
-                />
-              ) : (
-                <Silhouette
-                  number={profile.shirtNumber}
-                  accent={foil.accent}
-                  uid={uid}
-                />
+              {/* The foil under the portrait: the outline echoed inwards and rays from behind the player (the 3D card has its own). */}
+              {still || finish.foil === 0 ? null : (
+                <g
+                  mask={`url(#foil-mask-${uid})`}
+                  fill="none"
+                  stroke={`url(#foil-${uid})`}
+                  style={{ mixBlendMode: "screen" }}
+                >
+                  {Array.from({ length: 9 }, (_, step) => (
+                    <path
+                      key={step}
+                      d={CARD_PATH}
+                      strokeWidth="0.8"
+                      strokeOpacity={0.9 - step * 0.06}
+                      vectorEffect="non-scaling-stroke"
+                      transform={outlineAt(-(16 + step * (13 - step * 0.6)))}
+                    />
+                  ))}
+                  {Array.from({ length: 48 }, (_, ray) => {
+                    const angle = (ray / 48) * Math.PI * 2;
+                    return (
+                      <line
+                        key={ray}
+                        x1={160 + Math.cos(angle) * 40}
+                        y1={150 + Math.sin(angle) * 40}
+                        x2={160 + Math.cos(angle) * 420}
+                        y2={150 + Math.sin(angle) * 420}
+                        strokeWidth="0.6"
+                        strokeOpacity="0.5"
+                      />
+                    );
+                  })}
+                </g>
               )}
 
-              <rect
-                y="196"
-                width="320"
-                height="82"
-                fill={`url(#fade-${uid})`}
-              />
-              <rect y="277" width="320" height="195" fill="#0c100c" />
+              <g data-layer="portrait">
+                {profile.photo ? (
+                  <image
+                    href={profile.photo}
+                    x="86"
+                    y="30"
+                    width="232"
+                    height="240"
+                    preserveAspectRatio="xMidYMin slice"
+                  />
+                ) : (
+                  <Silhouette
+                    number={profile.shirtNumber}
+                    accent={foil.accent}
+                    uid={uid}
+                  />
+                )}
+
+                <rect
+                  y="196"
+                  width="320"
+                  height="82"
+                  fill={`url(#fade-${uid})`}
+                />
+                <rect y="277" width="320" height="195" fill="#0e0f10" />
+              </g>
               {/* The 3D card lights itself, so its art leaves out the pointer sheen. */}
               {still ? null : (
                 <motion.circle
@@ -327,7 +444,7 @@ export function PlayerCard({
                   style={{ mixBlendMode: "screen" }}
                 />
               )}
-              {reduceMotion || still ? null : (
+              {reduceMotion || still || !intro ? null : (
                 <motion.rect
                   y="-60"
                   width="70"
@@ -342,22 +459,24 @@ export function PlayerCard({
               )}
             </g>
 
+            {/* The printed border; the 3D card has a real metal frame instead. */}
             <path
+              data-layer="frame"
               d={CARD_PATH}
               fill="none"
               stroke={`url(#foil-${uid})`}
               strokeWidth="2.4"
             />
-            <path
-              d={CARD_PATH}
-              fill="none"
-              stroke={`url(#foil-${uid})`}
-              strokeOpacity="0.32"
-              strokeWidth="1"
-              transform="translate(160 236) scale(0.955 0.966) translate(-160 -236)"
-            />
 
-            <g fontFamily="var(--font-barlow-condensed)">
+            <g data-layer="info" fontFamily="var(--font-barlow-condensed)">
+              <path
+                d={CARD_PATH}
+                fill="none"
+                stroke={`url(#foil-${uid})`}
+                strokeOpacity="0.32"
+                strokeWidth="1"
+                transform="translate(160 236) scale(0.955 0.966) translate(-160 -236)"
+              />
               <text
                 ref={ovrText}
                 x="32"
@@ -510,7 +629,7 @@ export function PlayerCard({
 
               <text
                 x="160"
-                y="442"
+                y="437"
                 textAnchor="middle"
                 fontWeight="700"
                 fontSize="14"
@@ -521,7 +640,7 @@ export function PlayerCard({
               </text>
               <text
                 x="160"
-                y="455"
+                y="450"
                 textAnchor="middle"
                 fontWeight="600"
                 fontSize="12"
@@ -619,6 +738,7 @@ function CardBack({
         />
       </g>
       <path
+        data-layer="frame"
         d={CARD_PATH}
         fill="none"
         stroke={`url(#foil-${uid})`}
@@ -723,7 +843,7 @@ function CardBack({
         </text>
         <text
           x="160"
-          y="442"
+          y="437"
           textAnchor="middle"
           fontWeight="700"
           fontSize="14"
@@ -734,7 +854,7 @@ function CardBack({
         </text>
         <text
           x="160"
-          y="455"
+          y="450"
           textAnchor="middle"
           fontWeight="600"
           fontSize="12"

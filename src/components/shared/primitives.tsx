@@ -8,6 +8,7 @@ import { EASE, gsap, prefersReducedMotion, useGSAP } from "@/lib/gsap";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { useRevisit } from "@/components/motion/revisit";
 import { RESULT_META, type MatchResult } from "@/lib/domain";
 
 export function LinkButton({
@@ -173,6 +174,8 @@ export function CountUp({
 }) {
   const [ref, seen] = useSeenOnce<HTMLSpanElement>();
   const shown = useRef({ value: 0 });
+  const revisit = useRevisit();
+  const started = useRef(false);
 
   useEffect(() => {
     const node = ref.current;
@@ -180,6 +183,11 @@ export function CountUp({
     const render = () => {
       node.textContent = `${formatNumber(shown.current.value, decimals)}${suffix}`;
     };
+    // Coming back to a page, figures are already there; only real changes count.
+    if (!started.current) {
+      started.current = true;
+      if (revisit.current) shown.current.value = value;
+    }
     if (prefersReducedMotion()) {
       shown.current.value = value;
       render();
@@ -190,7 +198,7 @@ export function CountUp({
     return () => {
       tween.kill();
     };
-  }, [ref, seen, value, decimals, suffix, duration]);
+  }, [ref, seen, value, decimals, suffix, duration, revisit]);
 
   return (
     <span ref={ref} className={className}>
@@ -202,11 +210,13 @@ export function CountUp({
 export function XpBar({ progress, className, label }: { progress: number; className?: string; label: string }) {
   const fill = useRef<HTMLDivElement>(null);
   const first = useRef(true);
+  const revisit = useRevisit();
 
   useGSAP(
     () => {
       const width = `${Math.max(progress * 100, 1.5)}%`;
-      if (prefersReducedMotion()) {
+      if (prefersReducedMotion() || (first.current && revisit.current)) {
+        first.current = false;
         gsap.set(fill.current, { width });
         return;
       }
@@ -238,11 +248,12 @@ export function XpBar({ progress, className, label }: { progress: number; classN
 export function FillBar({ value, delay = 0, className }: { value: number; delay?: number; className?: string }) {
   const fill = useRef<HTMLDivElement>(null);
   const first = useRef(true);
+  const revisit = useRevisit();
 
   useGSAP(
     () => {
       const width = `${Math.min(1, Math.max(0, value)) * 100}%`;
-      if (prefersReducedMotion()) gsap.set(fill.current, { width });
+      if (prefersReducedMotion() || (first.current && revisit.current)) gsap.set(fill.current, { width });
       else gsap.to(fill.current, { width, duration: 0.9, ease: EASE.settle, delay: first.current ? delay : 0 });
       first.current = false;
     },
@@ -392,11 +403,14 @@ export function Reveal({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const revisit = useRevisit();
 
   useGSAP(
     () => {
       if (prefersReducedMotion() || !ref.current) return;
       const targets = stagger ? ref.current.querySelectorAll(stagger) : ref.current;
+      // Returning to a page: it's simply there (the route transition already eased it in).
+      if (revisit.current) return;
       // Opacity, not visibility, so content stays reachable for screen readers mid-animation.
       gsap.from(targets, {
         opacity: 0,

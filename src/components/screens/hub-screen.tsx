@@ -8,6 +8,7 @@ import { MilestoneTimeline, ObjectiveRow } from "@/components/career/honours";
 import { MatchRow } from "@/components/match/match-row";
 import { Tilt } from "@/components/motion/tilt";
 import { PlayerCardStage } from "@/components/player/player-card-stage";
+import { useRevisit } from "@/components/motion/revisit";
 import {
   CountUp,
   EmptyState,
@@ -81,10 +82,14 @@ function FormStrip({ matches }: { matches: Parameters<typeof recentForm>[0] }) {
   const form = recentForm(matches);
   const list = useRef<HTMLUListElement>(null);
   const key = form.map((match) => match.id).join();
+  const revisit = useRevisit();
+  const first = useRef(true);
 
   useGSAP(
     () => {
-      if (prefersReducedMotion()) return;
+      const skip = first.current && revisit.current;
+      first.current = false;
+      if (prefersReducedMotion() || skip) return;
       gsap.from("li", {
         opacity: 0,
         scale: 0.6,

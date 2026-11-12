@@ -303,6 +303,64 @@ function AttackMarkings() {
   );
 }
 
+/**
+ * A thin strip of light round the plinth's top edge, with its glow spilling
+ * onto the floor beneath, so the pitch reads as a lit object floating in the
+ * dark. Kept narrow and dim: an accent, not a neon sign.
+ */
+function EdgeGlow({ width, depth }: { width: number; depth: number }) {
+  const spill = useMemo(() => {
+    const pad = 0.18; // canvas margin for the blur, as a share of each side
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    const margin = canvas.width * pad;
+    const w = canvas.width - 2 * margin;
+    const h = (w * depth) / width;
+    canvas.height = Math.round(h + 2 * margin);
+    const context = canvas.getContext("2d")!;
+    // Only the blurred shadow of a rectangle drawn off-canvas lands in view.
+    context.shadowColor = "#c8ff00";
+    context.shadowBlur = 60;
+    context.shadowOffsetX = 4000;
+    context.lineWidth = 18;
+    context.strokeStyle = "#c8ff00";
+    context.strokeRect(margin - 4000, margin, w, h);
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    return { map, scale: 1 / (1 - 2 * pad) };
+  }, [width, depth]);
+  useEffect(() => () => spill.map.dispose(), [spill]);
+
+  const strip = 0.09;
+  const edges: { position: [number, number, number]; size: [number, number, number] }[] = [
+    { position: [0, 0, depth / 2], size: [width + strip, strip, strip] },
+    { position: [0, 0, -depth / 2], size: [width + strip, strip, strip] },
+    { position: [width / 2, 0, 0], size: [strip, strip, depth] },
+    { position: [-width / 2, 0, 0], size: [strip, strip, depth] },
+  ];
+  return (
+    <group>
+      {edges.map((edge, index) => (
+        <mesh key={index} position={edge.position}>
+          <boxGeometry args={edge.size} />
+          <meshBasicMaterial color="#c8ff00" transparent opacity={0.75} toneMapped={false} />
+        </mesh>
+      ))}
+      <mesh position={[0, -PLINTH_DEPTH - 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[width * spill.scale, depth + width * (spill.scale - 1)]} />
+        <meshBasicMaterial
+          map={spill.map}
+          transparent
+          opacity={0.32}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 export function PitchModel({ lite, children }: { lite: boolean; children?: React.ReactNode }) {
   const turf = useTurfTexture();
   const width = PITCH.length + RUN_OFF * 2;
@@ -323,6 +381,7 @@ export function PitchModel({ lite, children }: { lite: boolean; children?: React
         <planeGeometry args={[PITCH.length + 6, PITCH.width + 6]} />
         <meshStandardMaterial map={turf} roughness={0.95} metalness={0} />
       </mesh>
+      <EdgeGlow width={width} depth={depth} />
       <Markings />
       <Goal side={1} />
       <Goal side={-1} />
