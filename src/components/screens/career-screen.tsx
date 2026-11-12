@@ -140,13 +140,13 @@ export function CareerScreen() {
       <ViewTransition
         key={tab}
         enter={{
-          "tab-forward": "nav-forward",
-          "tab-back": "nav-back",
+          "tab-forward": "tab-forward",
+          "tab-back": "tab-back",
           default: "none",
         }}
         exit={{
-          "tab-forward": "nav-forward",
-          "tab-back": "nav-back",
+          "tab-forward": "tab-forward",
+          "tab-back": "tab-back",
           default: "none",
         }}
         default="none"
