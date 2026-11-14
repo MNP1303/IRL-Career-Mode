@@ -7,10 +7,11 @@
  */
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Loader2, MapPinned } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, Loader2, MapPinned } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { GpsStorageError, type GpsBackend } from "@/lib/gps/backend";
 import { GpsProcessor, GpsTaskError } from "@/lib/gps/client";
 import { createTransform } from "@/lib/gps/calibration";
 import { DEFAULT_LIMITS } from "@/lib/gps/errors";
@@ -29,6 +30,7 @@ import { CalibrateStep } from "@/components/gps/steps/calibrate-step";
 import { HeatmapStep } from "@/components/gps/steps/heatmap-step";
 import { AttachStep } from "@/components/gps/steps/attach-step";
 import {
+  detectDraft,
   draftFromCalibration,
   draftFromPreset,
   STEPS,
@@ -36,6 +38,7 @@ import {
   type CalibrationDraft,
   type LoadedFile,
   type PendingGpsAttachment,
+  type PitchDetection,
   type StepId,
   type WizardTarget,
 } from "@/components/gps/wizard-state";
@@ -107,11 +110,27 @@ export function GpsImportWizard({
   const [acknowledged, setAcknowledged] = useState(false);
   const [intervals, setIntervals] = useState<PlayingInterval[]>([]);
   const [draft, setDraft] = useState<CalibrationDraft>(() => draftFromPreset(target.kind === "existing" ? target.match.format : target.format));
+  const [detection, setDetection] = useState<PitchDetection | null>(null);
   const [outcome, setOutcome] = useState<{ key: string; result: TrackingResult | null; error: string | null } | null>(null);
   const [saving, setSaving] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const currentMatchId = target.kind === "existing" ? target.match.id : undefined;
+  const position = target.kind === "existing" ? target.match.position : target.position;
   const manualHref = target.kind === "existing" ? `/matches/${target.match.id}/edit` : undefined;
+
+  // Find out up front whether the account's storage can hold GPS data, rather than after six steps.
+  const [notReady, setNotReady] = useState<{ backend: GpsBackend; message: string } | null>(null);
+  useEffect(() => {
+    if (!open || !backend) return;
+    let live = true;
+    backend.checkReady().catch((error: unknown) => {
+      if (live && error instanceof GpsStorageError && error.code === "not-set-up") setNotReady({ backend, message: error.message });
+    });
+    return () => {
+      live = false;
+    };
+  }, [open, backend]);
+  const setupProblem = notReady && notReady.backend === backend ? notReady.message : null;
 
   useEffect(() => {
     if (!open) return;
@@ -135,6 +154,7 @@ export function GpsImportWizard({
       if (token !== loadToken.current) return;
       setLoaded({ bytes, name, parsed });
       setAcknowledged(false);
+      setDetection(null);
       if (summary) {
         // Re-opening an attached import: start from its saved trim and pitch.
         setIntervals(summary.intervals);
@@ -222,13 +242,25 @@ export function GpsImportWizard({
     trim: intervalCheck?.ok ? null : (intervalCheck?.errors[0] ?? "Mark at least one playing interval."),
     calibrate: !calibration ? "Place all four corners." : !calibrationOk ? "Fix the pitch issues listed." : null,
     heatmap: !result ? "The heatmap isn't ready yet." : result.quality.level === "insufficient" ? "This recording can't make a heatmap." : null,
-    attach: null,
+    attach: setupProblem ? "GPS storage isn't set up yet." : null,
   };
-  const position = STEPS.findIndex((item) => item.id === step);
+  const stepIndex = STEPS.findIndex((item) => item.id === step);
   const reachable = (id: StepId) => {
     const targetIndex = STEPS.findIndex((item) => item.id === id);
     return STEPS.slice(0, targetIndex).every((item) => !blockers[item.id]);
   };
+
+  /** Moves to a step. Arriving at the pitch step with no corners yet places the pitch from the movement. */
+  function go(id: StepId) {
+    if (id === "calibrate" && loaded && draft.corners.every((corner) => !corner)) {
+      const detected = detectDraft(loaded.parsed, intervalCheck?.intervals ?? intervals, draft, position);
+      if (detected) {
+        setDraft(detected.draft);
+        setDetection(detected.detection);
+      }
+    }
+    setStep(id);
+  }
 
   async function attach() {
     if (!loaded || !result) return;
@@ -259,7 +291,7 @@ export function GpsImportWizard({
     }
   }
 
-  const next = STEPS[position + 1];
+  const next = STEPS[stepIndex + 1];
   const nextLabel = step === "attach" ? (target.kind === "new" ? "Use with this match" : target.hasTrack ? "Replace GPS data" : "Attach GPS to match") : next ? `Next: ${next.label}` : "";
 
   return (
@@ -279,13 +311,19 @@ export function GpsImportWizard({
             Turns a GPS recording into a heatmap and metrics for this match. It never changes your rating, stats or progression.
           </DialogDescription>
           <div className="mt-3">
-            <StepList current={step} reachable={reachable} onGo={setStep} />
+            <StepList current={step} reachable={reachable} onGo={go} />
           </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {setupProblem ? (
+            <p role="alert" className="mb-4 flex gap-2 rounded-lg border border-destructive/40 bg-destructive/8 p-3 text-sm">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+              <span>{setupProblem}</span>
+            </p>
+          ) : null}
           <h2 ref={heading} tabIndex={-1} className="eyebrow mb-4 outline-none">
-            Step {position + 1} of {STEPS.length}: {STEPS[position].label}
+            Step {stepIndex + 1} of {STEPS.length}: {STEPS[stepIndex].label}
           </h2>
           {step === "file" ? <FileStep busy={reading} error={fileError} onFile={onFile} manualHref={manualHref} /> : null}
           {step === "preview" && loaded ? (
@@ -309,6 +347,9 @@ export function GpsImportWizard({
               processing={processing}
               processError={processError}
               backend={backend}
+              position={position}
+              detection={detection}
+              onDetection={setDetection}
             />
           ) : null}
           {step === "heatmap" ? <HeatmapStep result={result} processing={processing} error={processError} manualHref={manualHref} /> : null}
@@ -316,8 +357,8 @@ export function GpsImportWizard({
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 sm:px-6">
-          <Button variant="ghost" onClick={() => (position > 0 ? setStep(STEPS[position - 1].id) : onOpenChange(false))} disabled={saving} data-icon="inline-start">
-            <ArrowLeft /> {position > 0 ? "Back" : "Cancel"}
+          <Button variant="ghost" onClick={() => (stepIndex > 0 ? setStep(STEPS[stepIndex - 1].id) : onOpenChange(false))} disabled={saving} data-icon="inline-start">
+            <ArrowLeft /> {stepIndex > 0 ? "Back" : "Cancel"}
           </Button>
           <div className="flex items-center gap-3">
             {blockers[step] && step !== "file" ? (
@@ -326,12 +367,12 @@ export function GpsImportWizard({
               </p>
             ) : null}
             {step === "file" ? null : step === "attach" ? (
-              <Button variant="cta" size="lg" onClick={attach} disabled={saving || !result || (target.kind === "existing" && !backend)} data-icon="inline-start">
+              <Button variant="cta" size="lg" onClick={attach} disabled={saving || !result || Boolean(setupProblem) || (target.kind === "existing" && !backend)} data-icon="inline-start">
                 {saving ? <Loader2 className="animate-spin motion-reduce:animate-none" /> : <Check />}
                 {saving ? "Saving…" : nextLabel}
               </Button>
             ) : (
-              <Button onClick={() => next && setStep(next.id)} disabled={Boolean(blockers[step])} data-icon="inline-end">
+              <Button onClick={() => next && go(next.id)} disabled={Boolean(blockers[step])} data-icon="inline-end">
                 {nextLabel} <ArrowRight />
               </Button>
             )}

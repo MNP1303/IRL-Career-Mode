@@ -12,7 +12,8 @@ import { Field, FieldError, OverallRating, SkillRatingsInput, Stepper } from "@/
 import { PositionPicker } from "@/components/pitch/position-picker";
 import { ZonePainter } from "@/components/pitch/zone-painter";
 import { useCelebrate } from "@/components/progression/celebration";
-import { attachPendingGps, MatchFormGps } from "@/components/gps/match-form-gps";
+import { attachPendingGps, EditFormGps, MatchFormGps } from "@/components/gps/match-form-gps";
+import { useMatchGps } from "@/components/gps/match-gps";
 import { useGpsBackend } from "@/components/gps/use-gps-backend";
 import type { PendingGpsAttachment } from "@/components/gps/wizard-state";
 import {
@@ -109,6 +110,18 @@ function Section({ index, title, aside, children }: { index: string; title: stri
   );
 }
 
+type MapSource = "paint" | "gps";
+const MAP_SOURCE_KEY = "irl-career-mode:map-source";
+
+/** How the player last mapped a new match, so a watch user isn't asked every time. */
+function rememberedMapSource(): MapSource {
+  try {
+    return localStorage.getItem(MAP_SOURCE_KEY) === "gps" ? "gps" : "paint";
+  } catch {
+    return "paint";
+  }
+}
+
 export function MatchForm({ editing }: { editing?: Match }) {
   const router = useRouter();
   const celebrate = useCelebrate();
@@ -138,6 +151,21 @@ export function MatchForm({ editing }: { editing?: Match }) {
   const [draft, setDraft] = useState<Draft>(() => (editing ? fromMatch(editing) : blankDraft()));
   const gpsBackend = useGpsBackend();
   const [gps, setGps] = useState<PendingGpsAttachment | null>(null);
+  const editGps = useMatchGps(editing);
+  const [remembered] = useState(rememberedMapSource);
+  const [mapChoice, setMapChoice] = useState<MapSource | null>(null);
+  // Editing follows what the match page shows; a new match starts from the last choice.
+  const mapSource: MapSource = mapChoice ?? (editing ? (editGps.track?.heatmapSource === "gps" ? "gps" : "paint") : remembered);
+
+  function chooseMapSource(next: MapSource) {
+    setMapChoice(next);
+    if (editing) return;
+    try {
+      localStorage.setItem(MAP_SOURCE_KEY, next);
+    } catch {
+      // Remembering the choice is a convenience; private browsing can refuse it.
+    }
+  }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
 
@@ -203,13 +231,17 @@ export function MatchForm({ editing }: { editing?: Match }) {
     setSubmitted(false);
     toast.dismiss();
     if (editing) {
+      // Painted zones are never dropped when editing; the choice only sets which heatmap the match shows.
       actions.updateMatch(editing.id, parsed.data);
+      const source = mapSource === "gps" ? "gps" : "manual";
+      if (editGps.track && editGps.track.heatmapSource !== source) editGps.setSource(source);
       toast.success("Match updated", { description: "Your career has been recalculated." });
       router.push(`/matches/${editing.id}`);
     } else {
-      const match = actions.addMatch(parsed.data);
+      // A new match is mapped one way: painted zones, or a GPS file.
+      const match = actions.addMatch(mapSource === "gps" ? { ...parsed.data, zones: [] } : parsed.data);
       // GPS is attached after the match is saved, separately: it can't change or block the match.
-      if (gps) void attachPendingGps(gpsBackend, match.id, gps);
+      if (gps && mapSource === "gps") void attachPendingGps(gpsBackend, match.id, gps);
       // Visited routes stay mounted, so clear the form for the next match.
       setDraft(blankDraft());
       setGps(null);
@@ -348,19 +380,43 @@ export function MatchForm({ editing }: { editing?: Match }) {
         </Section>
 
         <Section index="04" title="Pitch map" aside="Optional">
-          <p className="mb-4 text-sm text-muted-foreground">
-            Drag across the areas you covered. Every map feeds your season heatmap.
-          </p>
-          <ZonePainter value={draft.zones} onChange={(value) => set("zones", value)} />
+          <Segmented
+            label="How to map this match"
+            className="mb-4"
+            value={mapSource}
+            onChange={chooseMapSource}
+            options={[
+              { value: "paint", label: "Paint it myself" },
+              { value: "gps", label: "From a GPS file" },
+            ]}
+          />
+          {mapSource === "paint" ? (
+            <>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Drag across the areas you covered. Every map feeds your season heatmap.
+                {editing && editGps.track ? " The GPS file stays attached for its metrics; the match shows your painted map." : ""}
+                {!editing && gps ? " The GPS file you added won't be attached while you paint the map yourself." : ""}
+              </p>
+              <ZonePainter value={draft.zones} onChange={(value) => set("zones", value)} />
+            </>
+          ) : editing ? (
+            <>
+              {draft.zones.length ? (
+                <p className="mb-4 text-xs text-muted-foreground">Your painted zones are kept, but the match shows the GPS heatmap.</p>
+              ) : null}
+              <EditFormGps match={editing} gps={editGps} />
+            </>
+          ) : (
+            <>
+              {draft.zones.length ? (
+                <p className="mb-4 text-xs text-[#f5c542]">The zones you painted won&apos;t be saved, because this match is mapped from GPS.</p>
+              ) : null}
+              <MatchFormGps format={draft.format} date={draft.date} position={draft.position} value={gps} onChange={setGps} />
+            </>
+          )}
         </Section>
 
-        {!editing ? (
-          <Section index="05" title="GPS file" aside="Optional">
-            <MatchFormGps format={draft.format} date={draft.date} value={gps} onChange={setGps} />
-          </Section>
-        ) : null}
-
-        <Section index={editing ? "05" : "06"} title="Notes" aside="Optional">
+        <Section index="05" title="Notes" aside="Optional">
           <Textarea
             aria-label="Match notes"
             value={draft.notes}

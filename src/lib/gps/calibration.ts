@@ -301,42 +301,6 @@ export function swapSides(calibration: PitchCalibration): PitchCalibration {
   return { ...calibration, corners: [d, c, b, a] };
 }
 
-/**
- * A starting guess when the player has no corners: a rectangle of the stated
- * size, centred on where they spent their time and turned along the main
- * direction of their movement. It is rigid (never stretched to the route) and
- * marked `estimated`, so the heatmap is labelled approximate until the player
- * moves the corners onto the real pitch.
- */
-export function estimateCorners(points: LatLon[], dimensions: PitchDimensions): Corners | null {
-  if (points.length < 10) return null;
-  const centre = {
-    lat: points.reduce((sum, point) => sum + point.lat, 0) / points.length,
-    lon: points.reduce((sum, point) => sum + point.lon, 0) / points.length,
-  };
-  const projection = localProjection(centre);
-  let sxx = 0;
-  let syy = 0;
-  let sxy = 0;
-  for (const point of points) {
-    const { e, n } = projection.forward(point);
-    sxx += e * e;
-    syy += n * n;
-    sxy += e * n;
-  }
-  // Principal axis of the positions.
-  const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-  const cos = Math.cos(theta);
-  const sin = Math.sin(theta);
-  const halfL = dimensions.length / 2;
-  const halfW = dimensions.width / 2;
-  return modelCorners(dimensions).map((corner) => {
-    const qx = corner.x - halfL;
-    const qy = -(corner.y - halfW);
-    return projection.inverse(qx * cos - qy * sin, qx * sin + qy * cos);
-  }) as Corners;
-}
-
 export interface CompatibilityCheck {
   compatible: boolean;
   distanceM: number;

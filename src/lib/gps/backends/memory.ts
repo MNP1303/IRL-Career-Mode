@@ -105,6 +105,12 @@ export class MemoryBackend implements GpsBackend {
   async getHeatmap(trackId: string) {
     return this.tracks.get(trackId)?.heatmap ?? null;
   }
+  async checkReady() {
+    this.check("checkReady");
+  }
+  async listActiveHeatmaps() {
+    return [...this.tracks.values()].filter((track) => track.active).map((track) => ({ matchId: track.matchId, pitch: track.summary.pitch, heatmap: track.heatmap }));
+  }
   async listTrackRefs() {
     return [...this.tracks.values()].map((track) => ({ id: track.id, matchId: track.matchId, importId: track.importId }));
   }

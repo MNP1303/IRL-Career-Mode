@@ -20,9 +20,23 @@ function client() {
   return { supabase, userId };
 }
 
+export const GPS_MIGRATION = "supabase/migrations/20261112120000_gps_tracking.sql";
+export const NOT_SET_UP_MESSAGE = `GPS storage isn't set up on this Supabase project yet. Run ${GPS_MIGRATION} in the Supabase SQL Editor, then try again. Your match is saved either way.`;
+
+/**
+ * Missing tables, function or bucket: the GPS migration hasn't been run on
+ * this project. PostgREST reports unknown tables as PGRST205 and unknown
+ * functions as PGRST202; Postgres itself as 42P01 and 42883.
+ */
+export function isNotSetUp(error: { message?: string; code?: string; error?: string } | null) {
+  if (!error) return false;
+  return ["PGRST205", "PGRST202", "42P01", "42883"].includes(error.code ?? "") || /bucket not found|NoSuchBucket|schema cache/i.test(`${error.message ?? ""} ${error.error ?? ""}`);
+}
+
 /** Database and storage errors, reworded for players. */
 function fail(error: { message?: string; code?: string } | null, fallback: string): never {
   const message = error?.message ?? "";
+  if (isNotSetUp(error)) throw new GpsStorageError(NOT_SET_UP_MESSAGE, "not-set-up");
   if (/not found for this player/i.test(message)) throw new GpsStorageError("That match isn't in your account.", "not-found");
   if (error?.code === "23505" || /duplicate/i.test(message)) throw new GpsStorageError("This file is already imported.", "duplicate");
   if (/fetch|network/i.test(message)) throw new GpsStorageError("Couldn't reach the server. Check your connection and try again.");
@@ -69,6 +83,16 @@ export const supabaseBackend: GpsBackend = {
     } catch (error) {
       throw new GpsStorageError(error instanceof Error ? error.message : "The match couldn't be synced.", "match-not-synced");
     }
+  },
+
+  async checkReady() {
+    const { supabase, userId } = client();
+    const [table, bucket] = await Promise.all([
+      supabase.from("match_gps_tracks").select("id").limit(1),
+      supabase.storage.from(GPS_BUCKET).list(userId, { limit: 1 }),
+    ]);
+    if (table.error) fail(table.error, "Couldn't reach GPS storage.");
+    if (bucket.error) fail(bucket.error, "Couldn't reach GPS file storage.");
   },
 
   async listImports() {
@@ -181,6 +205,16 @@ export const supabaseBackend: GpsBackend = {
     if (error) fail(error, "Couldn't load the heatmap.");
     const parsed = heatmapSchema.safeParse(data[0]?.heatmap);
     return parsed.success ? parsed.data : null;
+  },
+  async listActiveHeatmaps() {
+    const { supabase } = client();
+    const { data, error } = await supabase.from("match_gps_tracks").select("match_id, heatmap, summary").eq("is_active", true);
+    if (error) fail(error, "Couldn't load your GPS heatmaps.");
+    return data.flatMap((row) => {
+      const heatmap = heatmapSchema.safeParse(row.heatmap);
+      const summary = summarySchema.safeParse(row.summary);
+      return heatmap.success && summary.success ? [{ matchId: row.match_id, pitch: summary.data.pitch, heatmap: heatmap.data }] : [];
+    });
   },
   async listTrackRefs() {
     const { supabase } = client();

@@ -12,7 +12,6 @@ import {
   CORNER_LABELS,
   createTransform,
   DIMENSION_LIMITS,
-  estimateCorners,
   modelCorners,
   PITCH_PRESETS,
   reverseAttack,
@@ -21,13 +20,13 @@ import {
   type PitchPreset,
 } from "@/lib/gps/calibration";
 import type { TrackingResult } from "@/lib/gps/pipeline";
-import { checkIntervals } from "@/lib/gps/trim";
 import type { LatLon } from "@/lib/gps/types";
 import type { ParsedFile } from "@/lib/gps/worker-protocol";
 import { RouteMap } from "@/components/gps/route-map";
 import { GpsPitch, PlacementLegend } from "@/components/gps/gps-pitch";
 import { compassName } from "@/components/gps/format";
-import { toCalibration, type CalibrationDraft, type PlayingInterval } from "@/components/gps/wizard-state";
+import type { Position } from "@/lib/domain";
+import { detectDraft, playingPoints as selectPlayingPoints, toCalibration, type CalibrationDraft, type PitchDetection, type PlayingInterval } from "@/components/gps/wizard-state";
 import { cn } from "@/lib/utils";
 
 const PRESET_OPTIONS: { value: PitchPreset; label: string }[] = [
@@ -104,6 +103,9 @@ export function CalibrateStep({
   processing,
   processError,
   backend,
+  position,
+  detection,
+  onDetection,
 }: {
   parsed: ParsedFile;
   draft: CalibrationDraft;
@@ -113,6 +115,9 @@ export function CalibrateStep({
   processing: boolean;
   processError: string | null;
   backend: GpsBackend | null;
+  position: Position | null;
+  detection: PitchDetection | null;
+  onDetection: (detection: PitchDetection | null) => void;
 }) {
   const [selected, setSelected] = useState(0);
   const [saved, setSaved] = useState<CalibrationRow[]>([]);
@@ -122,13 +127,8 @@ export function CalibrateStep({
   const fit = transform?.fit ?? null;
   const outline = useMemo(() => (transform && fit?.ok ? (modelCorners(transform.calibration).map((point) => transform.fromPitch(point)) as Corners) : null), [transform, fit?.ok]);
 
-  // Positions inside the playing intervals, for estimating and compatibility checks.
-  const playingPoints = useMemo(() => {
-    const sorted = checkIntervals(intervals, parsed.activity).intervals;
-    const points = parsed.screen.points.filter((point) => !point.excluded && sorted.some((interval) => point.t >= interval.start && point.t <= interval.end));
-    const stride = Math.max(1, Math.floor(points.length / 2000));
-    return points.filter((_, index) => index % stride === 0);
-  }, [parsed, intervals]);
+  // Positions inside the playing intervals, for compatibility checks.
+  const playingPoints = useMemo(() => selectPlayingPoints(parsed, intervals, 2000), [parsed, intervals]);
 
   useEffect(() => {
     let live = true;
@@ -150,9 +150,24 @@ export function CalibrateStep({
     onChange({ ...draft, ...patch, savedId: patch.savedId ?? null });
   }
 
+  /** Applies a change; a detected pitch is detected again at the new size, since it's only a guess anyway. */
+  function resize(patch: Pick<CalibrationDraft, "preset"> & Partial<Pick<CalibrationDraft, "length" | "width">>) {
+    const next = { ...draft, ...patch };
+    const valid = next.length >= DIMENSION_LIMITS.minLength && next.length <= DIMENSION_LIMITS.maxLength && next.width >= DIMENSION_LIMITS.minWidth && next.width <= DIMENSION_LIMITS.maxWidth;
+    if (draft.cornerSource === "estimated" && valid) {
+      const detected = detectDraft(parsed, intervals, next, position);
+      if (detected) {
+        onDetection(detected.detection);
+        onChange(detected.draft);
+        return;
+      }
+    }
+    update(patch);
+  }
+
   function setPreset(preset: PitchPreset) {
-    if (preset === "custom") update({ preset });
-    else update({ preset, length: PITCH_PRESETS[preset].length, width: PITCH_PRESETS[preset].width });
+    if (preset === "custom") resize({ preset });
+    else resize({ preset, length: PITCH_PRESETS[preset].length, width: PITCH_PRESETS[preset].width });
   }
 
   function moveCorner(index: number, point: LatLon | null) {
@@ -162,12 +177,13 @@ export function CalibrateStep({
   }
 
   function estimate() {
-    const corners = estimateCorners(playingPoints, { length: draft.length, width: draft.width });
-    if (!corners) {
-      toast.error("Not enough positions to estimate the pitch");
+    const detected = detectDraft(parsed, intervals, draft, position);
+    if (!detected) {
+      toast.error("Not enough positions to find the pitch", { description: "Check your playing intervals, or place the corners yourself." });
       return;
     }
-    update({ corners, cornerSource: "estimated" });
+    onDetection(detected.detection);
+    onChange(detected.draft);
   }
 
   function transformDraft(change: typeof reverseAttack) {
@@ -253,7 +269,7 @@ export function CalibrateStep({
                     step={0.5}
                     value={draft[key]}
                     aria-invalid={sizeError}
-                    onChange={(event) => update({ preset: "custom", [key]: Number(event.target.value) })}
+                    onChange={(event) => resize({ preset: "custom", [key]: Number(event.target.value) })}
                   />
                 </label>
               ))}
@@ -264,6 +280,10 @@ export function CalibrateStep({
               </p>
             ) : null}
           </section>
+
+          {detection && draft.cornerSource === "estimated" ? (
+            <DetectionPanel detection={detection} draft={draft} onPickCorners={(corners) => update({ corners: [...corners], cornerSource: "estimated" })} onPreset={setPreset} />
+          ) : null}
 
           {saved.length ? (
             <section aria-labelledby="saved-pitches">
@@ -319,7 +339,7 @@ export function CalibrateStep({
             </ol>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Button size="xs" variant="secondary" onClick={estimate} data-icon="inline-start">
-                <Sparkles /> Estimate from my movement
+                <Sparkles /> Detect from my movement
               </Button>
               <Button size="xs" variant="secondary" onClick={() => transformDraft(reverseAttack)} disabled={!calibration} data-icon="inline-start">
                 <Repeat2 /> Reverse attack
@@ -331,7 +351,7 @@ export function CalibrateStep({
                 <X /> Clear
               </Button>
             </div>
-            {draft.cornerSource === "estimated" ? (
+            {draft.cornerSource === "estimated" && !detection ? (
               <p className="mt-2 text-xs text-[#f5c542]">
                 These corners are a guess from your movement. Move them onto the real pitch corners; until then the heatmap is marked approximate.
               </p>
@@ -423,6 +443,87 @@ export function CalibrateStep({
         </div>
       </section>
     </div>
+  );
+}
+
+const CONFIDENCE_LABEL = { high: "High confidence", medium: "Check it", low: "Low confidence" } as const;
+
+const sameCorners = (a: (LatLon | null)[], b: Corners) => a.every((corner, index) => corner && corner.lat === b[index].lat && corner.lon === b[index].lon);
+
+/** What detection found, how sure it is, and the one thing the player may need to tell it: the direction they attacked. */
+function DetectionPanel({
+  detection,
+  draft,
+  onPickCorners,
+  onPreset,
+}: {
+  detection: PitchDetection;
+  draft: CalibrationDraft;
+  onPickCorners: (corners: Corners) => void;
+  onPreset: (preset: PitchPreset) => void;
+}) {
+  const directions = useMemo(() => {
+    const options = [detection.corners, ...(detection.alternative ? [detection.alternative] : [])];
+    return options.map((corners) => ({
+      corners,
+      bearing: createTransform({ version: 1, corners, length: draft.length, width: draft.width, preset: draft.preset, cornerSource: "estimated" }).fit.attackBearing,
+    }));
+  }, [detection, draft.length, draft.width, draft.preset]);
+  const moved = !directions.some((option) => sameCorners(draft.corners, option.corners));
+  const suggested = detection.suggestedPreset ? PITCH_PRESETS[detection.suggestedPreset] : null;
+  return (
+    <section aria-labelledby="pitch-detection" className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 id="pitch-detection" className="flex items-center gap-1.5 text-sm font-semibold">
+          <Sparkles className="size-4 text-primary" aria-hidden /> Pitch found from your movement
+        </h3>
+        <span
+          className={cn(
+            "rounded px-1.5 py-0.5 text-[11px] font-semibold",
+            detection.confidence === "high" ? "bg-primary/15 text-primary" : detection.confidence === "medium" ? "bg-[#f5c542]/15 text-[#f5c542]" : "bg-destructive/15 text-destructive",
+          )}
+        >
+          {CONFIDENCE_LABEL[detection.confidence]}
+        </span>
+      </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        {Math.round(detection.insideShare * 100)}% of your playing time falls on this pitch. You covered about {Math.round(detection.footprint.length)} ×{" "}
+        {Math.round(detection.footprint.width)} m of it.
+      </p>
+      {detection.alternative && !moved ? (
+        <fieldset className="mt-3">
+          <legend className="text-xs font-semibold">Which way did you attack in the first half?</legend>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {directions.map((option) => {
+              const active = sameCorners(draft.corners, option.corners);
+              return (
+                <Button key={option.bearing} size="xs" variant={active ? "default" : "secondary"} aria-pressed={active} onClick={() => onPickCorners(option.corners)}>
+                  Towards the {compassName(option.bearing)}
+                </Button>
+              );
+            })}
+          </div>
+        </fieldset>
+      ) : null}
+      {suggested && detection.suggestedPreset ? (
+        <Button size="xs" variant="secondary" className="mt-3" onClick={() => onPreset(detection.suggestedPreset!)}>
+          Use {suggested.label} ({suggested.length} × {suggested.width} m)
+        </Button>
+      ) : null}
+      {detection.notes.length ? (
+        <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+          {detection.notes.map((note) => (
+            <li key={note} className="flex gap-1.5">
+              <AlertTriangle className="mt-px size-3.5 shrink-0 text-[#f5c542]" aria-hidden />
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="mt-2 text-xs text-muted-foreground">
+        It&apos;s an estimate, so the heatmap is marked approximate. Drag any corner onto the real pitch to make it exact.
+      </p>
+    </section>
   );
 }
 

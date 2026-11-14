@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   checkCompatibility,
   createTransform,
-  estimateCorners,
   reverseAttack,
   swapSides,
   type PitchCalibration,
@@ -99,18 +98,6 @@ describe("pitch calibration", () => {
     expect(p.x).toBeCloseTo(85, 3);
     expect(p.y).toBeCloseTo(58, 3);
     expect(reversed.fit.attackBearing).toBeCloseTo(270, 3);
-  });
-
-  it("estimates a rigid starting rectangle from movement, never a bounding box", () => {
-    const transform = createTransform(testCalibration(105, 68, 30));
-    // Movement covering only the middle of the pitch.
-    const points = Array.from({ length: 400 }, (_, i) => transform.fromPitch({ x: 30 + (i % 40) * 1.2, y: 20 + Math.floor(i / 40) * 2.5 }));
-    const corners = estimateCorners(points, { length: 105, width: 68 })!;
-    const estimated = createTransform({ ...transform.calibration, corners, cornerSource: "estimated" });
-    // Exactly the stated size, whatever the spread of the movement.
-    expect(estimated.fit.rms).toBeLessThan(0.01);
-    expect(haversine(corners[0], corners[1])).toBeCloseTo(105, 0);
-    expect(haversine(corners[1], corners[2])).toBeCloseTo(68, 0);
   });
 
   it("checks a saved calibration against the activity", () => {

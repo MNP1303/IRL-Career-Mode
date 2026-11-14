@@ -1,10 +1,11 @@
 import { PITCH_PRESETS, type PitchCalibration, type PitchPreset } from "@/lib/gps/calibration";
 import type { TrackingResult } from "@/lib/gps/pipeline";
 import type { PendingImport, DuplicateReport } from "@/lib/gps/service";
-import type { PlayingInterval } from "@/lib/gps/trim";
+import { detectPitch, type PitchDetection } from "@/lib/gps/detect";
+import { checkIntervals, type PlayingInterval } from "@/lib/gps/trim";
 import type { LatLon } from "@/lib/gps/types";
 import type { ParsedFile } from "@/lib/gps/worker-protocol";
-import type { MatchFormat } from "@/lib/domain";
+import type { MatchFormat, Position } from "@/lib/domain";
 import type { Match } from "@/lib/schema";
 
 export const STEPS = [
@@ -19,7 +20,7 @@ export type StepId = (typeof STEPS)[number]["id"];
 
 export type WizardTarget =
   | { kind: "existing"; match: Match; hasTrack: boolean }
-  | { kind: "new"; format: MatchFormat; date: string };
+  | { kind: "new"; format: MatchFormat; date: string; position: Position };
 
 /** A processed import waiting for its match to be saved (logging a new match). */
 export interface PendingGpsAttachment {
@@ -77,4 +78,23 @@ export interface LoadedFile {
   parsed: ParsedFile;
 }
 
-export type { DuplicateReport, PlayingInterval };
+/** Trusted positions inside the playing intervals, thinned to at most about `limit`. */
+export function playingPoints(parsed: ParsedFile, intervals: PlayingInterval[], limit = 4000) {
+  const sorted = checkIntervals(intervals, parsed.activity).intervals;
+  const points = parsed.screen.points.filter((point) => !point.excluded && sorted.some((interval) => point.t >= interval.start && point.t <= interval.end));
+  const stride = Math.max(1, Math.floor(points.length / limit));
+  return points.filter((_, index) => index % stride === 0);
+}
+
+/** Places the pitch from the movement (see `detect.ts`), as a draft the player then checks. */
+export function detectDraft(parsed: ParsedFile, intervals: PlayingInterval[], draft: CalibrationDraft, position: Position | null): { draft: CalibrationDraft; detection: PitchDetection } | null {
+  const sorted = checkIntervals(intervals, parsed.activity).intervals;
+  const detection = detectPitch(playingPoints(parsed, intervals), draft, {
+    position,
+    switchedIntervals: sorted.filter((interval) => interval.switchedEnds),
+  });
+  if (!detection) return null;
+  return { draft: { ...draft, corners: [...detection.corners], cornerSource: "estimated", savedId: null }, detection };
+}
+
+export type { DuplicateReport, PitchDetection, PlayingInterval };

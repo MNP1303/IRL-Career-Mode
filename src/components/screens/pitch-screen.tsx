@@ -43,7 +43,12 @@ import {
   Reveal,
   Segmented,
 } from "@/components/shared/primitives";
-import { PITCH, POSITION_META, type Position } from "@/lib/domain";
+import { PITCH, POSITION_META, ZONE_COLS, ZONE_ROWS, type Position } from "@/lib/domain";
+import { gridZoneShares } from "@/lib/gps/heatmap";
+import { SEASON_PITCH } from "@/lib/gps/season";
+import { GpsHeatLegend, GpsPitch } from "@/components/gps/gps-pitch";
+import { ZoneShareBars } from "@/components/gps/zone-shares";
+import { useSeasonGps, useSeasonGrid } from "@/components/gps/season-gps";
 import { chronological } from "@/lib/engine/career";
 import {
   aggregateZones,
@@ -63,6 +68,19 @@ import { useCareer } from "@/lib/store";
 
 const ALL_POSITIONS = "all";
 const VIEW_KEY = "irl-career-mode:pitch-view";
+const SOURCE_KEY = "irl-career-mode:pitch-source";
+const EMPTY_ZONES = new Array(ZONE_COLS * ZONE_ROWS).fill(0);
+
+/** Where the heatmap comes from: zones painted by hand, or GPS files. */
+type HeatSource = "painted" | "gps";
+
+function storedSource(): HeatSource {
+  try {
+    return localStorage.getItem(SOURCE_KEY) === "gps" ? "gps" : "painted";
+  } catch {
+    return "painted";
+  }
+}
 
 type Dimension = "2d" | "3d";
 
@@ -131,11 +149,29 @@ export function PitchScreen() {
   const orientation = usePitchOrientation();
   const group = useRef<SVGGElement>(null);
 
+  const [source, setSource] = useState<HeatSource>(storedSource);
+  const seasonGps = useSeasonGps(source === "gps");
+  const gpsMode = source === "gps";
+
+  function chooseSource(next: HeatSource) {
+    setSource(next);
+    setHovered(null);
+    try {
+      localStorage.setItem(SOURCE_KEY, next);
+    } catch {
+      // A remembered choice is a convenience; private browsing can refuse it.
+    }
+  }
+
   const ordered = useMemo(() => chronological(matches), [matches]);
-  const mapped = useMemo(
-    () => ordered.filter((match) => match.zones.length > 0),
-    [ordered],
+  const isMapped = useMemo(
+    () =>
+      gpsMode
+        ? (match: Match) => seasonGps.byMatch.has(match.id)
+        : (match: Match) => match.zones.length > 0,
+    [gpsMode, seasonGps.byMatch],
   );
+  const mapped = useMemo(() => ordered.filter(isMapped), [ordered, isMapped]);
   const seasons = useMemo(() => seasonsIn(matches), [matches]);
 
   const [view, setView] = useState<"season" | "match">("season");
@@ -194,12 +230,27 @@ export function PitchScreen() {
   }, [view, selected, scoped, positionFilter, positionsPlayed]);
 
   // Memoised so hovering (which re-renders) doesn't rebuild the heatmap or the 3D terrain.
-  const contributing = useMemo(
-    () => pool.filter((match) => match.zones.length > 0),
-    [pool],
+  const contributing = useMemo(() => pool.filter(isMapped), [pool, isMapped]);
+  const grid = useMemo(
+    () => aggregateZones(gpsMode ? [] : contributing),
+    [gpsMode, contributing],
   );
-  const grid = useMemo(() => aggregateZones(contributing), [contributing]);
   const shares = useMemo(() => zoneShares(grid), [grid]);
+  const gpsRows = useMemo(
+    () =>
+      gpsMode
+        ? contributing.flatMap((match) => {
+            const row = seasonGps.byMatch.get(match.id);
+            return row ? [row] : [];
+          })
+        : [],
+    [gpsMode, contributing, seasonGps.byMatch],
+  );
+  const gpsGrid = useSeasonGrid(gpsRows);
+  const gpsShares = useMemo(
+    () => (gpsGrid ? gridZoneShares(gpsGrid, SEASON_PITCH) : null),
+    [gpsGrid],
+  );
 
   const positionCounts = useMemo(() => {
     const counts = new Map<Position, number>();
@@ -218,10 +269,48 @@ export function PitchScreen() {
       <PageHeader
         eyebrow="Pitch intelligence"
         title="Where you play"
-        description="Heatmaps built only from the zones you've recorded, so unmapped matches never fill in the picture."
+        description={
+          gpsMode
+            ? "Heatmaps built only from your imported GPS files, each scaled onto a standard pitch."
+            : "Heatmaps built only from the zones you've recorded, so unmapped matches never fill in the picture."
+        }
       />
 
-      {mapped.length === 0 ? (
+      <div className="mb-4">
+        <Segmented
+          label="Heatmap source"
+          value={source}
+          onChange={chooseSource}
+          options={[
+            { value: "painted", label: "Painted zones" },
+            { value: "gps", label: "GPS files" },
+          ]}
+        />
+      </div>
+
+      {gpsMode && seasonGps.loading ? (
+        <div className="skeleton h-72 rounded-lg" aria-label="Loading your GPS heatmaps" />
+      ) : gpsMode && seasonGps.error ? (
+        <p role="alert" className="panel p-card text-sm text-destructive">
+          {seasonGps.error}
+        </p>
+      ) : gpsMode && mapped.length === 0 ? (
+        <EmptyState
+          icon={<MapPinned />}
+          title="No GPS heatmaps yet"
+          action={
+            <LinkButton
+              href={matches.length ? `/matches/${ordered.at(-1)!.id}` : "/matches/new"}
+              variant="cta"
+              size="lg"
+            >
+              {matches.length ? "Add GPS to your latest match" : "Log your first match"}
+            </LinkButton>
+          }
+        >
+          Import a GPX, TCX or FIT file on a match, or choose &ldquo;From a GPS file&rdquo; when you log one, and your GPS heatmap appears here.
+        </EmptyState>
+      ) : mapped.length === 0 ? (
         <EmptyState
           icon={<MapPinned />}
           title="No zones recorded yet"
@@ -411,9 +500,10 @@ export function PitchScreen() {
               {show3d ? (
                 <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-[radial-gradient(ellipse_at_62%_38%,#14423a_0%,#0d1c1a_52%,#0b1112_100%)] sm:aspect-[16/10]">
                   <LazyPitch3D
-                    grid={grid}
-                    hovered={hovered}
-                    onHover={setHovered}
+                    grid={gpsMode ? EMPTY_ZONES : grid}
+                    gps={gpsMode && gpsGrid ? { grid: gpsGrid, pitch: SEASON_PITCH } : undefined}
+                    hovered={gpsMode ? null : hovered}
+                    onHover={gpsMode ? () => {} : setHovered}
                     lite={lite}
                     view={camera}
                     focusKey={view === "match" ? selected?.id : undefined}
@@ -421,12 +511,26 @@ export function PitchScreen() {
                     resetKey={resetKey}
                     onFail={() => setFailed3d(true)}
                     label={
-                      shares.hottest
-                        ? `3D heatmap from ${contributing.length} matches. Most active: ${shares.hottest}.`
-                        : "Flat 3D pitch. No zones recorded for this selection."
+                      gpsMode
+                        ? `3D GPS heatmap from ${contributing.length} matches.`
+                        : shares.hottest
+                          ? `3D heatmap from ${contributing.length} matches. Most active: ${shares.hottest}.`
+                          : "Flat 3D pitch. No zones recorded for this selection."
                     }
                   />
                 </div>
+              ) : gpsMode ? (
+                gpsGrid ? (
+                  <GpsPitch
+                    grid={gpsGrid}
+                    pitch={SEASON_PITCH}
+                    label={`GPS heatmap from ${contributing.length} matches on a standard 105 by 68 metre pitch, attacking to the right.`}
+                  />
+                ) : (
+                  <p className="grid aspect-[117/80] place-items-center rounded-lg border border-dashed border-input text-sm text-muted-foreground">
+                    No GPS heatmaps for this selection. Try another season or position.
+                  </p>
+                )
               ) : (
                 <div className="mx-auto max-w-[min(100%,62vh)] sm:max-w-none">
                   <Pitch
@@ -462,8 +566,10 @@ export function PitchScreen() {
                 </div>
               )}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
-                <HeatLegend />
-                {show3d ? (
+                {gpsMode ? <GpsHeatLegend /> : <HeatLegend />}
+                {gpsMode && !show3d ? (
+                  <p className="eyebrow text-primary">Attacking to the right</p>
+                ) : show3d ? (
                   <p className="eyebrow text-primary">Attacking direction marked on the pitch</p>
                 ) : (
                   <AttackHint orientation={orientation} />
@@ -478,6 +584,11 @@ export function PitchScreen() {
                     </span>
                   </p>
                 ) : null}
+                {show3d && gpsMode ? (
+                  <p className="w-full text-xs text-faint">
+                    Each match is scaled from its own pitch size onto a standard 105 × 68 m pitch.
+                  </p>
+                ) : null}
                 {show3d && showPositions && positionCounts.length ? (
                   <p className="w-full text-xs text-faint">
                     Markers show the positions you played, placed at each
@@ -485,7 +596,7 @@ export function PitchScreen() {
                     records zones and roles, not GPS tracking.
                   </p>
                 ) : null}
-                {
+                {gpsMode && !show3d ? null : (
                   <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
                     <input
                       type="checkbox"
@@ -497,7 +608,7 @@ export function PitchScreen() {
                     />
                     Show positions
                   </label>
-                }
+                )}
               </div>
               <p
                 className="mt-2 min-h-5 text-sm text-foreground/85"
@@ -535,12 +646,26 @@ export function PitchScreen() {
                     </span>
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    matches have a recorded map
+                    {gpsMode ? "matches have a GPS heatmap" : "matches have a recorded map"}
                   </p>
                 </div>
               )}
 
-              {shares.total > 0 ? (
+              {gpsMode ? (
+                gpsShares && gpsGrid ? (
+                  <div className="space-y-5">
+                    <p className="text-sm text-muted-foreground">
+                      {Math.round(gpsGrid.totalSeconds / 60)} minutes of tracked play.
+                    </p>
+                    <ZoneShareBars title="Pitch thirds (time)" items={gpsShares.thirds} />
+                    <ZoneShareBars title="Channels (time)" items={gpsShares.channels} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No GPS heatmaps for this selection. Try another season or position.
+                  </p>
+                )
+              ) : shares.total > 0 ? (
                 <>
                   <div className="mb-5 flex items-start gap-2.5">
                     <Flame className="mt-0.5 size-4 shrink-0 text-primary" />

@@ -57,6 +57,7 @@ const fileKey = (row: Pick<ImportRow, "id" | "format">) => `${row.id}.${row.form
 export const localBackend: GpsBackend = {
   kind: "local",
   async ensureMatchReady() {},
+  async checkReady() {},
 
   listImports: () => run(["imports"], "readonly", (tx) => all<ImportRow>(tx, "imports")),
   insertImport: (row) =>
@@ -129,6 +130,14 @@ export const localBackend: GpsBackend = {
     const track = await run(["tracks"], "readonly", (tx) => wrap(tx.objectStore("tracks").get(trackId)) as Promise<StoredTrack | undefined>);
     const parsed = heatmapSchema.safeParse(track?.heatmap);
     return parsed.success ? parsed.data : null;
+  },
+  async listActiveHeatmaps() {
+    const tracks = await run(["tracks"], "readonly", (tx) => all<StoredTrack>(tx, "tracks"));
+    return tracks.flatMap((track) => {
+      const heatmap = heatmapSchema.safeParse(track.heatmap);
+      const summary = summarySchema.safeParse(track.summary);
+      return track.active && heatmap.success && summary.success ? [{ matchId: track.matchId, pitch: summary.data.pitch, heatmap: heatmap.data }] : [];
+    });
   },
   async listTrackRefs() {
     const tracks = await run(["tracks"], "readonly", (tx) => all<StoredTrack>(tx, "tracks"));

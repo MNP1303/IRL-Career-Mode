@@ -225,3 +225,16 @@ describe("trimming", () => {
     expect(result.zones.channels[0].share).toBeCloseTo(1, 5);
   });
 });
+
+describe("account storage that isn't set up", () => {
+  it("recognises a project without the GPS migration and says what to run", async () => {
+    const { isNotSetUp, NOT_SET_UP_MESSAGE } = await import("@/lib/gps/backends/supabase");
+    // The responses Supabase gives when the tables, function or bucket don't exist.
+    expect(isNotSetUp({ code: "PGRST205", message: "Could not find the table 'public.gps_imports' in the schema cache" })).toBe(true);
+    expect(isNotSetUp({ code: "PGRST202", message: "Could not find the function public.attach_gps_track" })).toBe(true);
+    expect(isNotSetUp({ message: "Bucket not found" })).toBe(true);
+    expect(isNotSetUp({ code: "42501", message: "permission denied for table matches" })).toBe(false);
+    expect(isNotSetUp(null)).toBe(false);
+    expect(NOT_SET_UP_MESSAGE).toMatch(/20261112120000_gps_tracking\.sql/);
+  });
+});

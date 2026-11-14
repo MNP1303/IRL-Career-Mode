@@ -72,3 +72,31 @@ describe("worker protocol", () => {
     expect(stale.ok).toBe(false);
   });
 });
+
+describe("season GPS heatmaps", () => {
+  it("lines matches on different pitch sizes up by relative position and keeps each match's time", async () => {
+    const { combineHeatmaps, SEASON_PITCH } = await import("@/lib/gps/season");
+    const { gridZoneShares } = await import("@/lib/gps/heatmap");
+    // Ten minutes three-quarters up the left flank of a 7-a-side pitch, five on the same spot of a full-size one.
+    const small = { length: 60, width: 40 };
+    const smallGrid = buildHeatGrid([Array.from({ length: 601 }, (_, s) => ({ t: s * 1000, x: 45, y: 8 }))], small);
+    const bigGrid = buildHeatGrid([Array.from({ length: 301 }, (_, s) => ({ t: s * 1000, x: 78.75, y: 13.6 }))], PITCH);
+    const season = combineHeatmaps([
+      { pitch: small, grid: decodeHeatmap(encodeHeatmap(smallGrid)), totalSeconds: smallGrid.totalSeconds },
+      { pitch: PITCH, grid: decodeHeatmap(encodeHeatmap(bigGrid)), totalSeconds: bigGrid.totalSeconds },
+    ])!;
+    expect(season.matches).toBe(2);
+    expect(season.totalSeconds).toBeCloseTo(900, 0);
+    expect(season.values.reduce((sum, value) => sum + value, 0)).toBeCloseTo(900, 0);
+    let hottest = 0;
+    for (let index = 1; index < season.values.length; index += 1) if (season.values[index] > season.values[hottest]) hottest = index;
+    const x = season.originX + ((hottest % season.cols) + 0.5) * season.cellM;
+    const y = season.originY + (Math.floor(hottest / season.cols) + 0.5) * season.cellM;
+    expect(Math.abs(x - 78.75)).toBeLessThan(1.5);
+    expect(Math.abs(y - 13.6)).toBeLessThan(1.5);
+    const shares = gridZoneShares(season, SEASON_PITCH);
+    expect(shares.thirds[2].share).toBeGreaterThan(0.9);
+    expect(shares.channels[0].share).toBeGreaterThan(0.9);
+    expect(combineHeatmaps([])).toBeNull();
+  });
+});

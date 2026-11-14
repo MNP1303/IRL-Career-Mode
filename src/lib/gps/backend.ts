@@ -47,6 +47,12 @@ export interface CalibrationRow {
   updatedAt: number;
 }
 
+export interface ActiveHeatmap {
+  matchId: string;
+  pitch: { length: number; width: number };
+  heatmap: StoredHeatmap;
+}
+
 export interface AttachInput {
   matchId: string;
   importId: string;
@@ -71,10 +77,15 @@ export interface GpsBackend {
   /** Every stored source file, for finding orphans after a partial failure. */
   listFiles(): Promise<Pick<ImportRow, "id" | "format">[]>;
 
+  /** Resolves when this storage can hold GPS data; rejects with `not-set-up` when it can't (no tables or bucket). */
+  checkReady(): Promise<void>;
+
   /** Attaches atomically, replacing any active track on the match. */
   attachTrack(input: AttachInput): Promise<{ trackId: string; replacedImportId: string | null }>;
   getActiveTrack(matchId: string): Promise<TrackRow | null>;
   getHeatmap(trackId: string): Promise<StoredHeatmap | null>;
+  /** Every match's active heatmap with its pitch size, for season heatmaps. */
+  listActiveHeatmaps(): Promise<ActiveHeatmap[]>;
   /** Light listing: which imports and matches tracks refer to. */
   listTrackRefs(): Promise<{ id: string; matchId: string; importId: string }[]>;
   setHeatmapSource(trackId: string, source: HeatmapSource): Promise<void>;
@@ -88,7 +99,7 @@ export interface GpsBackend {
 export class GpsStorageError extends Error {
   constructor(
     message: string,
-    readonly code: "not-signed-in" | "match-not-synced" | "not-found" | "duplicate" | "storage" | "invalid" = "storage",
+    readonly code: "not-signed-in" | "not-set-up" | "match-not-synced" | "not-found" | "duplicate" | "storage" | "invalid" = "storage",
   ) {
     super(message);
     this.name = "GpsStorageError";

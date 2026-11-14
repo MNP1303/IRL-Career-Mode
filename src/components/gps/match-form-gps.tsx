@@ -7,15 +7,17 @@
  */
 
 import { useState } from "react";
-import { MapPinned, Trash2, Upload } from "lucide-react";
+import { MapPinned, RefreshCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { GpsBackend } from "@/lib/gps/backend";
 import { saveTracking } from "@/lib/gps/service";
-import type { MatchFormat } from "@/lib/domain";
+import type { MatchFormat, Position } from "@/lib/domain";
+import type { Match } from "@/lib/schema";
 import { GpsImportWizard } from "@/components/gps/import-wizard";
 import { QualityBadge } from "@/components/gps/metrics";
-import { formatMetric } from "@/components/gps/format";
+import { formatDay, formatMetric } from "@/components/gps/format";
+import type { MatchGps } from "@/components/gps/match-gps";
 import type { PendingGpsAttachment } from "@/components/gps/wizard-state";
 
 export async function attachPendingGps(backend: GpsBackend | null, matchId: string, pending: PendingGpsAttachment) {
@@ -36,11 +38,13 @@ export async function attachPendingGps(backend: GpsBackend | null, matchId: stri
 export function MatchFormGps({
   format,
   date,
+  position,
   value,
   onChange,
 }: {
   format: MatchFormat;
   date: string;
+  position: Position;
   value: PendingGpsAttachment | null;
   onChange: (value: PendingGpsAttachment | null) => void;
 }) {
@@ -89,7 +93,65 @@ export function MatchFormGps({
         </>
       )}
       {open ? (
-        <GpsImportWizard key={key} open onOpenChange={setOpen} target={{ kind: "new", format, date }} onPending={onChange} />
+        <GpsImportWizard key={key} open onOpenChange={setOpen} target={{ kind: "new", format, date, position }} onPending={onChange} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * GPS while editing a saved match. Importing saves straight away (the match
+ * already exists), separately from the rest of the form.
+ */
+export function EditFormGps({ match, gps }: { match: Match; gps: MatchGps }) {
+  const [wizardKey, setWizardKey] = useState<number | null>(null);
+  const { track } = gps;
+  if (match.isSample) {
+    return <p className="text-sm text-muted-foreground">Demo matches can&apos;t hold GPS data. Start your own career to import a GPS file.</p>;
+  }
+  return (
+    <div>
+      {gps.loading ? (
+        <div className="skeleton h-16 rounded-lg" aria-label="Loading GPS data" />
+      ) : gps.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {gps.error}
+        </p>
+      ) : track ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <MapPinned className="size-4 text-primary" aria-hidden /> GPS file attached
+            </p>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <QualityBadge level={track.quality} />
+              <span>{formatMetric(track.summary.metrics.playingTime)} playing</span>
+              <span>· {formatMetric(track.summary.metrics.distance)}</span>
+              <span>· imported {formatDay(track.createdAt)}</span>
+            </p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" onClick={() => setWizardKey(Date.now())} disabled={!gps.backend} data-icon="inline-start">
+            <RefreshCw /> Replace file
+          </Button>
+        </div>
+      ) : (
+        <>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Add a GPX, TCX or FIT file from your watch or phone. It&apos;s saved to the match straight away and never changes your XP or attributes.
+          </p>
+          <Button type="button" variant="secondary" onClick={() => setWizardKey(Date.now())} disabled={!gps.backend} data-icon="inline-start">
+            <Upload /> Add GPS file
+          </Button>
+        </>
+      )}
+      {wizardKey !== null ? (
+        <GpsImportWizard
+          key={wizardKey}
+          open
+          onOpenChange={(open) => !open && setWizardKey(null)}
+          target={{ kind: "existing", match, hasTrack: Boolean(track) }}
+          onAttached={gps.reload}
+        />
       ) : null}
     </div>
   );
